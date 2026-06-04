@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .note-editor-content .tiptap {
+    @apply text-base leading-relaxed text-gray-800;
+  }
+
+  .note-editor-content .tiptap p.is-editor-empty:first-child::before {
+    @apply pointer-events-none float-left h-0 text-gray-300;
+    content: attr(data-placeholder);
+  }
+
+  .note-editor-content .tiptap h1 {
+    @apply mb-4 mt-6 text-3xl font-bold text-gray-900;
+  }
+
+  .note-editor-content .tiptap h2 {
+    @apply mb-3 mt-5 text-2xl font-semibold text-gray-900;
+  }
+
+  .note-editor-content .tiptap h3 {
+    @apply mb-2 mt-4 text-xl font-semibold text-gray-900;
+  }
+
+  .note-editor-content .tiptap p {
+    @apply mb-3;
+  }
+
+  .note-editor-content .tiptap ul {
+    @apply mb-3 list-disc pl-6;
+  }
+
+  .note-editor-content .tiptap ol {
+    @apply mb-3 list-decimal pl-6;
+  }
+
+  .note-editor-content .tiptap blockquote {
+    @apply mb-3 border-l-4 border-gray-300 pl-4 italic text-gray-600;
+  }
+
+  .note-editor-content .tiptap pre {
+    @apply mb-3 overflow-x-auto rounded-lg bg-gray-100 p-4 font-mono text-sm;
+  }
+
+  .note-editor-content .tiptap code {
+    @apply rounded bg-gray-100 px-1 py-0.5 font-mono text-sm text-pink-600;
+  }
+
+  .note-editor-content .tiptap pre code {
+    @apply bg-transparent p-0 text-gray-800;
+  }
+
+  .note-editor-content .tiptap hr {
+    @apply my-6 border-gray-200;
+  }
+
+  .note-editor-content .tiptap a {
+    @apply text-blue-600 underline;
+  }
+
+  .note-editor-content .tiptap a.note-internal-link,
+  .note-editor-content .note-link-node a {
+    @apply text-blue-600 underline decoration-blue-300 underline-offset-2 hover:text-blue-800;
+  }
+}
