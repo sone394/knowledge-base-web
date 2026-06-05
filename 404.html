@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Redirecting…</title>
+    <script>
+      (function () {
+        // GitHub Pages 项目站（username.github.io/仓库名/）设为 1；
+        // 用户/组织站（username.github.io/）设为 0
+        var segmentCount = 1;
+
+        sessionStorage.setItem(
+          'redirect',
+          location.pathname + location.search + location.hash
+        );
+
+        var segments = location.pathname.replace(/\/$/, '').split('/').filter(Boolean);
+        var repoBase =
+          segmentCount === 0
+            ? ''
+            : '/' + segments.slice(0, segmentCount).join('/');
+
+        location.replace(location.origin + repoBase + '/index.html');
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
