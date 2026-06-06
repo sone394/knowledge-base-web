@@ -18,6 +18,16 @@ import {
   findTreeNode,
   type TreeDropPosition,
 } from '../hooks/utils/noteTree'
+import {
+  findJournalFolder,
+  findTodayJournalId,
+  JOURNAL_FOLDER_TITLE,
+} from '../lib/journal'
+import {
+  buildNoteFromTemplate,
+  type NoteTemplateId,
+} from '../lib/noteTemplates'
+import NoteTemplatePicker from './NoteTemplatePicker'
 import NoteVirtualTree from './NoteVirtualTree'
 import ThemeToggle from './ThemeToggle'
 
@@ -94,8 +104,20 @@ export default function Sidebar({
     id: string
     position: TreeDropPosition
   } | null>(null)
+  const [templatePicker, setTemplatePicker] = useState<{
+    parentId: string | null
+    parentLabel: string | null
+  } | null>(null)
 
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+  const expandFolder = useCallback((folderId: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev)
+      next.delete(folderId)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -128,37 +150,95 @@ export default function Sidebar({
     setContextMenu({ x: event.clientX, y: event.clientY, note })
   }
 
-  const handleCreateRoot = () => {
-    createNote.mutate(
-      { parent_id: null, title: '未命名笔记' },
-      {
-        onSuccess: ({ data: note }) => {
-          onSelectNote(note.id)
-          setRenamingId(note.id)
-          setRenameValue(note.title || '未命名笔记')
-        },
-      },
-    )
-  }
+  const handleCreateFromTemplate = useCallback(
+    (templateId: NoteTemplateId, parentId: string | null) => {
+      const { title, content, renameOnCreate } = buildNoteFromTemplate(templateId)
+      setTemplatePicker(null)
 
-  const handleCreateChild = (parent: NoteTreeNode) => {
-    closeContextMenu()
-    createNote.mutate(
-      { parent_id: parent.id, title: '未命名笔记' },
-      {
-        onSuccess: ({ data: note }) => {
-          setCollapsedIds((prev) => {
-            const next = new Set(prev)
-            next.delete(parent.id)
-            return next
-          })
-          onSelectNote(note.id)
-          setRenamingId(note.id)
-          setRenameValue(note.title || '未命名笔记')
+      createNote.mutate(
+        { parent_id: parentId, title, content },
+        {
+          onSuccess: ({ data: note }) => {
+            if (parentId) expandFolder(parentId)
+            onSelectNote(note.id)
+            if (renameOnCreate) {
+              setRenamingId(note.id)
+              setRenameValue(note.title || '未命名笔记')
+            }
+          },
         },
-      },
-    )
-  }
+      )
+    },
+    [createNote, expandFolder, onSelectNote],
+  )
+
+  const openTemplatePicker = useCallback(
+    (parent: NoteTreeNode | null) => {
+      closeContextMenu()
+      setTemplatePicker({
+        parentId: parent?.id ?? null,
+        parentLabel: parent
+          ? parent.title.trim() || '未命名笔记'
+          : null,
+      })
+    },
+    [closeContextMenu],
+  )
+
+  const handleWriteJournal = useCallback(async () => {
+    if (createNote.isPending) return
+
+    const folder = findJournalFolder(notes)
+
+    if (folder) {
+      const existingId = findTodayJournalId(notes, folder.id)
+      if (existingId) {
+        expandFolder(folder.id)
+        onSelectNote(existingId)
+        return
+      }
+
+      const { title, content } = buildNoteFromTemplate('daily')
+      createNote.mutate(
+        { parent_id: folder.id, title, content },
+        {
+          onSuccess: ({ data: note }) => {
+            expandFolder(folder.id)
+            onSelectNote(note.id)
+          },
+        },
+      )
+      return
+    }
+
+    const rootNotes = notes.filter((note) => note.parent_id === null)
+    const minSort =
+      rootNotes.length > 0
+        ? Math.min(...rootNotes.map((note) => note.sort_order))
+        : 0
+
+    try {
+      const { data: newFolder } = await createNote.mutateAsync({
+        parent_id: null,
+        title: JOURNAL_FOLDER_TITLE,
+        content: '',
+        sort_order: minSort - 1,
+      })
+
+      const { title, content } = buildNoteFromTemplate('daily')
+      createNote.mutate(
+        { parent_id: newFolder.id, title, content },
+        {
+          onSuccess: ({ data: note }) => {
+            expandFolder(newFolder.id)
+            onSelectNote(note.id)
+          },
+        },
+      )
+    } catch {
+      // createNote mutation 会通过 isError 反馈
+    }
+  }, [createNote, expandFolder, notes, onSelectNote])
 
   const handleStartRename = (note: NoteTreeNode) => {
     closeContextMenu()
@@ -293,18 +373,32 @@ export default function Sidebar({
         </h2>
         <div className="flex items-center gap-1">
           {!isEmpty && (
-            <button
-              type="button"
-              onClick={handleCreateRoot}
-              disabled={createNote.isPending}
-              className="touch-target rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              title="新建笔记"
-              aria-label="新建笔记"
-            >
+            <>
+              <button
+                type="button"
+                onClick={() => void handleWriteJournal()}
+                disabled={createNote.isPending}
+                className="touch-target rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                title="写日记"
+                aria-label="写日记"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => openTemplatePicker(null)}
+                disabled={createNote.isPending}
+                className="touch-target rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                title="新建笔记"
+                aria-label="新建笔记"
+              >
             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
               <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
             </svg>
-            </button>
+              </button>
+            </>
           )}
           {isDrawer && onClose && (
             <button
@@ -322,7 +416,7 @@ export default function Sidebar({
       </div>
 
       {!isEmpty && (
-        <div className="border-b border-gray-200 px-3 py-2 dark:border-gray-800">
+        <div className="space-y-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800">
           <input
             type="search"
             value={searchQuery}
@@ -332,6 +426,17 @@ export default function Sidebar({
             aria-label="筛选笔记"
             className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm md:py-1.5 text-gray-800 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-blue-500 dark:focus:bg-gray-800 dark:focus:ring-blue-900/40"
           />
+          <button
+            type="button"
+            onClick={() => void handleWriteJournal()}
+            disabled={createNote.isPending}
+            className="touch-target flex w-full items-center justify-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+            </svg>
+            写日记
+          </button>
         </div>
       )}
 
@@ -362,14 +467,24 @@ export default function Sidebar({
               </svg>
             </div>
             <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">还没有笔记</p>
-            <button
-              type="button"
-              onClick={handleCreateRoot}
-              disabled={createNote.isPending}
-              className="touch-target rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {createNote.isPending ? '创建中…' : '创建第一篇笔记'}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => void handleWriteJournal()}
+                disabled={createNote.isPending}
+                className="touch-target rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60"
+              >
+                {createNote.isPending ? '创建中…' : '写日记'}
+              </button>
+              <button
+                type="button"
+                onClick={() => openTemplatePicker(null)}
+                disabled={createNote.isPending}
+                className="touch-target rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                新建笔记
+              </button>
+            </div>
           </div>
         )}
 
@@ -567,7 +682,7 @@ export default function Sidebar({
           <button
             type="button"
             className="touch-target flex w-full items-center px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            onClick={() => handleCreateChild(contextMenu.note)}
+            onClick={() => openTemplatePicker(contextMenu.note)}
           >
             新建子笔记
           </button>
@@ -587,6 +702,17 @@ export default function Sidebar({
             删除
           </button>
         </div>
+      )}
+
+      {templatePicker && (
+        <NoteTemplatePicker
+          open
+          parentLabel={templatePicker.parentLabel}
+          onClose={() => setTemplatePicker(null)}
+          onSelect={(templateId) =>
+            handleCreateFromTemplate(templateId, templatePicker.parentId)
+          }
+        />
       )}
 
       {deleteTarget && (

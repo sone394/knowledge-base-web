@@ -8,6 +8,7 @@ function withReviewDefaults(note: Note): Note {
     review_interval: note.review_interval ?? 0,
     review_count: note.review_count ?? 0,
     next_review_date: note.next_review_date ?? null,
+    is_shared: note.is_shared ?? false,
   }
 }
 

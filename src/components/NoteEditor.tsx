@@ -22,6 +22,7 @@ import NoteRightPanel from './NoteRightPanel'
 import PullToRefresh from './PullToRefresh'
 import { useToggleNoteReview } from '../hooks/useReview'
 import { formatReviewDueDate } from '../lib/spacedRepetition'
+import NoteMoreMenu from './NoteMoreMenu'
 export type NoteEditorProps = {
   noteId: string
   onSelectNote: (noteId: string | null) => void
@@ -241,6 +242,17 @@ export default function NoteEditor({
   )
 
   const needsReview = note?.needs_review ?? false
+  const isShared = note?.is_shared ?? false
+
+  const moreMenu = (
+    <NoteMoreMenu
+      noteId={noteId}
+      title={title}
+      content={content}
+      isShared={isShared}
+      onOpenHistory={() => setHistoryOpen(true)}
+    />
+  )
 
   const reviewToggle = (
     <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs transition-colors hover:border-amber-300 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-amber-600">
@@ -290,6 +302,7 @@ export default function NoteEditor({
           >
             <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
               {reviewToggle}
+              {moreMenu}
               {focusToggleButton}
             </div>
             <div className="mx-auto w-full max-w-3xl px-4 py-6">
@@ -316,6 +329,7 @@ export default function NoteEditor({
               }`}
             >
               {!isFocusMode && reviewToggle}
+              {!isFocusMode && moreMenu}
               {focusToggleButton}
             </div>
 
@@ -373,13 +387,11 @@ export default function NoteEditor({
                   <span className="tabular-nums text-gray-400 dark:text-gray-500">
                     {charCount} 字
                   </span>
-              <button
-                type="button"
-                onClick={() => setHistoryOpen(true)}
-                className="touch-target rounded-md border border-gray-200 bg-white px-2.5 py-1 text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-400"
-              >
-                    历史版本
-                  </button>
+                  {isShared && (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+                      已分享
+                    </span>
+                  )}
                   <span className="hidden text-gray-300 sm:inline dark:text-gray-600">
                     Markdown 快捷键：# 标题 · [[ 链接笔记 · - 列表
                   </span>

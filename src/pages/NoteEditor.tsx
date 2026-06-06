@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import AppLayout from '../components/AppLayout'
 import NoteEditor from '../components/NoteEditor'
+import MobileShareButton from '../components/MobileShareButton'
 import { useNotes } from '../hooks/useNotes'
+import { useNoteContent } from '../hooks/useNoteContent'
 import { useIsMobile } from '../hooks/useMediaQuery'
 
 export default function NoteEditorPage() {
@@ -42,11 +44,21 @@ export default function NoteEditorPage() {
     return note?.title.trim() || '无标题'
   }, [selectedNoteId, notes])
 
+  const { title: noteTitle, content: noteContent } = useNoteContent(
+    selectedNoteId ?? undefined,
+  )
+
+  const mobileHeaderExtra = useMemo(() => {
+    if (!isMobile || !selectedNoteId) return null
+    return <MobileShareButton title={noteTitle} content={noteContent} />
+  }, [isMobile, selectedNoteId, noteTitle, noteContent])
+
   return (
     <AppLayout
       selectedNoteId={selectedNoteId}
       onSelectNote={handleSelectNote}
       mobileTitle={mobileTitle}
+      headerExtra={mobileHeaderExtra}
     >
       <main className="flex min-h-0 flex-1 flex-col">
         {!isMobile && (

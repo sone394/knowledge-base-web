@@ -72,6 +72,7 @@ create table public.notes (
   review_interval    integer     not null default 0,
   next_review_date   timestamptz,
   review_count       integer     not null default 0,
+  is_shared          boolean     not null default false, -- 是否允许公开只读分享
   tsv                tsvector,                           -- 全文搜索向量（title + content）
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
@@ -88,8 +89,11 @@ comment on column public.notes.needs_review is '是否纳入复习计划';
 comment on column public.notes.review_interval is '当前复习间隔（天）';
 comment on column public.notes.next_review_date is '下次复习日期';
 comment on column public.notes.review_count is '累计复习次数';
+comment on column public.notes.is_shared is '是否允许通过 /share/:id 公开只读访问';
 
 create index idx_notes_user_id on public.notes (user_id);
+create index idx_notes_shared on public.notes (id)
+  where is_shared = true and deleted_at is null;
 create index idx_notes_review_due on public.notes (user_id, next_review_date)
   where needs_review = true and deleted_at is null;
 create index idx_notes_parent_id on public.notes (parent_id);
@@ -287,6 +291,9 @@ alter table public.review_logs enable row level security;
 -- notes
 create policy "notes_select_own" on public.notes
   for select using (auth.uid() = user_id);
+
+create policy "notes_select_shared_anon" on public.notes
+  for select using (is_shared = true and deleted_at is null);
 
 create policy "notes_insert_own" on public.notes
   for insert with check (auth.uid() = user_id);

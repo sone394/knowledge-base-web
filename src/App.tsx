@@ -12,8 +12,9 @@ import Search from './pages/Search'
 import Settings from './pages/Settings'
 import Dashboard from './pages/Dashboard'
 import Review from './pages/Review'
+import ShareNote from './pages/ShareNote'
 
-function App() {
+function AuthenticatedApp() {
   return (
     <ProtectedRoute>
       <EncryptionGate>
@@ -35,6 +36,15 @@ function App() {
         </Routes>
       </EncryptionGate>
     </ProtectedRoute>
+  )
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/share/:noteId" element={<ShareNote />} />
+      <Route path="*" element={<AuthenticatedApp />} />
+    </Routes>
   )
 }
 

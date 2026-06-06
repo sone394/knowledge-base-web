@@ -36,6 +36,7 @@ function buildOptimisticNote(
     review_interval: input.review_interval ?? 0,
     next_review_date: input.next_review_date ?? null,
     review_count: input.review_count ?? 0,
+    is_shared: input.is_shared ?? false,
     created_at: now,
     updated_at: now,
   }
@@ -101,7 +102,9 @@ export async function updateNoteWrite(
   password: string,
   currentNote: Note,
 ): Promise<WriteResult<Note>> {
-  const encryptedUpdates = encryptNoteUpdates(updates, password)
+  const encryptedUpdates = currentNote.is_shared
+    ? updates
+    : encryptNoteUpdates(updates, password)
   const optimistic: Note = {
     ...currentNote,
     ...updates,

@@ -28,6 +28,7 @@ export interface Note {
   review_interval: number
   next_review_date: string | null
   review_count: number
+  is_shared: boolean
   created_at: string
   updated_at: string
 }
@@ -96,6 +97,7 @@ export interface NoteInsert {
   review_interval?: number
   next_review_date?: string | null
   review_count?: number
+  is_shared?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -111,7 +113,17 @@ export interface NoteUpdate {
   review_interval?: number
   next_review_date?: string | null
   review_count?: number
+  is_shared?: boolean
   updated_at?: string
+}
+
+/** 公开分享页查询的笔记字段 */
+export interface SharedNote {
+  id: string
+  title: string
+  content: string
+  updated_at: string
+  is_shared: boolean
 }
 
 export interface ReviewLogInsert {
@@ -233,6 +245,7 @@ export type Database = {
           review_interval: number
           next_review_date: string | null
           review_count: number
+          is_shared: boolean
           created_at: string
           updated_at: string
         }
@@ -249,6 +262,7 @@ export type Database = {
           review_interval?: number
           next_review_date?: string | null
           review_count?: number
+          is_shared?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -263,6 +277,7 @@ export type Database = {
           review_interval?: number
           next_review_date?: string | null
           review_count?: number
+          is_shared?: boolean
           updated_at?: string
         }
         Relationships: [

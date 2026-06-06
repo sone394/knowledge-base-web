@@ -1,4 +1,4 @@
-const APP_ROUTE_SEGMENTS = new Set(['notes', 'note'])
+const APP_ROUTE_SEGMENTS = new Set(['notes', 'note', 'share'])
 
 /** GitHub Pages 项目站子路径；Cloudflare 根域名与本地开发为 '' */
 export function getRouterBasename(): string {
