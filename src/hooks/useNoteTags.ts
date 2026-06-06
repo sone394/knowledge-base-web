@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabaseClient'
+import { decryptNotes } from '../lib/noteCrypto'
+import { useEncryption } from '../context/EncryptionContext'
 import type { Note, Tag } from '../../types/database'
 import { queryKeys } from './queryKeys'
 
@@ -102,10 +104,15 @@ export function useNoteTags(noteId: string | undefined) {
 
 /** 按标签筛选笔记 */
 export function useNotesByTag(tagId: string | undefined) {
+  const { password, isUnlocked } = useEncryption()
+
   const query = useQuery({
     queryKey: queryKeys.notes.byTag(tagId ?? ''),
-    queryFn: () => fetchNotesByTag(tagId!),
-    enabled: !!tagId,
+    queryFn: async () => {
+      const notes = await fetchNotesByTag(tagId!)
+      return decryptNotes(notes, password!)
+    },
+    enabled: !!tagId && isUnlocked && !!password,
   })
 
   return {

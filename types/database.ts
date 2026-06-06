@@ -21,9 +21,31 @@ export interface Note {
   parent_id: string | null
   title: string
   content: string
+  summary: string | null
   sort_order: number
+  deleted_at: string | null
+  needs_review: boolean
+  review_interval: number
+  next_review_date: string | null
+  review_count: number
   created_at: string
   updated_at: string
+}
+
+export interface ReviewLog {
+  id: string
+  note_id: string
+  user_id: string
+  reviewed_at: string
+  rating: number
+}
+
+export interface NoteHistory {
+  id: string
+  note_id: string
+  content: string | null
+  title: string | null
+  created_at: string
 }
 
 export interface Tag {
@@ -67,7 +89,13 @@ export interface NoteInsert {
   parent_id?: string | null
   title?: string
   content?: string
+  summary?: string | null
   sort_order?: number
+  deleted_at?: string | null
+  needs_review?: boolean
+  review_interval?: number
+  next_review_date?: string | null
+  review_count?: number
   created_at?: string
   updated_at?: string
 }
@@ -76,8 +104,30 @@ export interface NoteUpdate {
   parent_id?: string | null
   title?: string
   content?: string
+  summary?: string | null
   sort_order?: number
+  deleted_at?: string | null
+  needs_review?: boolean
+  review_interval?: number
+  next_review_date?: string | null
+  review_count?: number
   updated_at?: string
+}
+
+export interface ReviewLogInsert {
+  id?: string
+  note_id: string
+  user_id: string
+  reviewed_at?: string
+  rating: number
+}
+
+export interface NoteHistoryInsert {
+  id?: string
+  note_id: string
+  content?: string | null
+  title?: string | null
+  created_at?: string
 }
 
 export interface TagInsert {
@@ -131,6 +181,32 @@ export interface NoteWithLinks extends Note {
   backlinks?: NoteBacklink[]
 }
 
+/** search_notes RPC 返回行 */
+export interface NoteSearchResult extends Note {
+  rank: number
+}
+
+/** get_dashboard_daily_notes RPC 返回行 */
+export interface DashboardDailyNoteRow {
+  day: string
+  count: number
+}
+
+/** get_dashboard_tag_frequency RPC 返回行 */
+export interface DashboardTagFrequencyRow {
+  tag_name: string
+  usage_count: number
+}
+
+/** get_dashboard_summary RPC 返回行 */
+export interface DashboardSummaryRow {
+  total_notes: number
+  weekly_edits: number
+  total_tags: number
+  total_links: number
+  notes_this_week: number
+}
+
 export interface NoteTreeNode extends Note {
   children?: NoteTreeNode[]
 }
@@ -150,7 +226,13 @@ export type Database = {
           parent_id: string | null
           title: string
           content: string
+          summary: string | null
           sort_order: number
+          deleted_at: string | null
+          needs_review: boolean
+          review_interval: number
+          next_review_date: string | null
+          review_count: number
           created_at: string
           updated_at: string
         }
@@ -160,7 +242,13 @@ export type Database = {
           parent_id?: string | null
           title?: string
           content?: string
+          summary?: string | null
           sort_order?: number
+          deleted_at?: string | null
+          needs_review?: boolean
+          review_interval?: number
+          next_review_date?: string | null
+          review_count?: number
           created_at?: string
           updated_at?: string
         }
@@ -168,7 +256,13 @@ export type Database = {
           parent_id?: string | null
           title?: string
           content?: string
+          summary?: string | null
           sort_order?: number
+          deleted_at?: string | null
+          needs_review?: boolean
+          review_interval?: number
+          next_review_date?: string | null
+          review_count?: number
           updated_at?: string
         }
         Relationships: [
@@ -247,6 +341,75 @@ export type Database = {
           },
         ]
       }
+      note_history: {
+        Row: {
+          id: string
+          note_id: string
+          content: string | null
+          title: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          note_id: string
+          content?: string | null
+          title?: string | null
+          created_at?: string
+        }
+        Update: {
+          note_id?: string
+          content?: string | null
+          title?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'note_history_note_id_fkey'
+            columns: ['note_id']
+            isOneToOne: false
+            referencedRelation: 'notes'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      review_logs: {
+        Row: {
+          id: string
+          note_id: string
+          user_id: string
+          reviewed_at: string
+          rating: number
+        }
+        Insert: {
+          id?: string
+          note_id: string
+          user_id: string
+          reviewed_at?: string
+          rating: number
+        }
+        Update: {
+          note_id?: string
+          user_id?: string
+          reviewed_at?: string
+          rating?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'review_logs_note_id_fkey'
+            columns: ['note_id']
+            isOneToOne: false
+            referencedRelation: 'notes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'review_logs_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       note_links: {
         Row: {
           id: string
@@ -304,7 +467,30 @@ export type Database = {
         Relationships: []
       }
     }
-    Functions: Record<string, never>
+    Functions: {
+      search_notes: {
+        Args: {
+          query_text: string
+        }
+        Returns: NoteSearchResult[]
+      }
+      get_dashboard_daily_notes: {
+        Args: {
+          days?: number
+        }
+        Returns: DashboardDailyNoteRow[]
+      }
+      get_dashboard_tag_frequency: {
+        Args: {
+          result_limit?: number
+        }
+        Returns: DashboardTagFrequencyRow[]
+      }
+      get_dashboard_summary: {
+        Args: Record<string, never>
+        Returns: DashboardSummaryRow[]
+      }
+    }
   }
 }
 
@@ -317,6 +503,8 @@ export const TABLE = {
   tags: 'tags',
   note_tags: 'note_tags',
   note_links: 'note_links',
+  note_history: 'note_history',
+  review_logs: 'review_logs',
 } as const
 
 export type TableName = (typeof TABLE)[keyof typeof TABLE]

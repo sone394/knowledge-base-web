@@ -45,8 +45,9 @@ git push -u origin main
 |-------------|------|
 | `SUPABASE_URL` | Supabase 项目 URL（与本地 `.env` 中 `VITE_SUPABASE_URL` 相同） |
 | `SUPABASE_ANON_KEY` | Supabase 匿名公钥（与本地 `VITE_SUPABASE_ANON_KEY` 相同） |
+| `OPENAI_API_KEY` | OpenAI API Key（与本地 `VITE_OPENAI_API_KEY` 相同，用于 AI 摘要功能） |
 
-Workflow 会在构建时自动映射为 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。
+Workflow 会在构建时自动映射为 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY` 和 `VITE_OPENAI_API_KEY`。
 
 ---
 
@@ -106,10 +107,12 @@ npm run deploy
 |------|------|
 | `public/404.html` | GitHub Pages 在找不到文件时返回此页；将当前路径写入 `sessionStorage` 后跳转到 `index.html` |
 | `index.html` 内联脚本 | 读取 `sessionStorage` 中的路径，用 `history.replaceState` 恢复 URL |
-| `vite.config.ts` 中 `base: './'` | 资源使用相对路径，适配 `username.github.io/仓库名/` 子路径 |
+| 构建变量 `VITE_BASE` | GitHub Actions 自动设为 `/仓库名/`；静态资源从正确子路径加载 |
 | `BrowserRouter` 的 `basename` | 与仓库子路径对齐，保证 React Router 正确匹配路由 |
 
-若使用 **用户/组织主页**（`https://用户名.github.io/`，无仓库名路径前缀），请编辑 `public/404.html`，将 `segmentCount` 从 `1` 改为 `0`。
+若使用 **用户/组织主页**（`https://用户名.github.io/`，无仓库名路径前缀），请编辑 `public/404.html`，将 `segmentCount` 从 `1` 改为 `0`，并将 Actions 中的 `VITE_BASE` 改为 `/`。
+
+> 若部署到 **Cloudflare Pages**，请参阅 [DEPLOY-CLOUDFLARE.md](./DEPLOY-CLOUDFLARE.md)，`VITE_BASE` 应设为 `/`。
 
 ---
 

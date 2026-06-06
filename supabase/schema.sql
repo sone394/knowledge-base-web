@@ -65,22 +65,39 @@ create table public.notes (
   parent_id     uuid        references public.notes (id) on delete cascade,
   title         text        not null default '',
   content       text        not null default '',  -- Markdown 正文
-  sort_order    integer     not null default 0,   -- 同级子节点排序
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now(),
+  summary       text,                               -- AI 生成的摘要
+  deleted_at    timestamptz,                        -- 软删除时间（回收站）
+  sort_order         integer     not null default 0,   -- 同级子节点排序
+  needs_review       boolean     not null default false,
+  review_interval    integer     not null default 0,
+  next_review_date   timestamptz,
+  review_count       integer     not null default 0,
+  tsv                tsvector,                           -- 全文搜索向量（title + content）
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now(),
 
   constraint notes_no_self_parent check (id is distinct from parent_id)
 );
 
 comment on table public.notes is '笔记；通过 parent_id 组成树形结构';
 comment on column public.notes.content is 'Markdown 格式正文';
+comment on column public.notes.summary is 'AI 生成的笔记摘要';
+comment on column public.notes.deleted_at is '软删除时间，非空表示在回收站';
 comment on column public.notes.sort_order is '同一父节点下的显示顺序，数值越小越靠前';
+comment on column public.notes.needs_review is '是否纳入复习计划';
+comment on column public.notes.review_interval is '当前复习间隔（天）';
+comment on column public.notes.next_review_date is '下次复习日期';
+comment on column public.notes.review_count is '累计复习次数';
 
 create index idx_notes_user_id on public.notes (user_id);
+create index idx_notes_review_due on public.notes (user_id, next_review_date)
+  where needs_review = true and deleted_at is null;
 create index idx_notes_parent_id on public.notes (parent_id);
+create index idx_notes_created_at on public.notes (created_at desc);
 create index idx_notes_user_parent_sort on public.notes (user_id, parent_id, sort_order);
 create index idx_notes_user_updated_at on public.notes (user_id, updated_at desc);
 create index idx_notes_user_created_at on public.notes (user_id, created_at desc);
+create index idx_notes_tsv on public.notes using gin (tsv);
 
 create trigger trg_notes_updated_at
   before update on public.notes
@@ -89,6 +106,23 @@ create trigger trg_notes_updated_at
 create trigger trg_notes_prevent_cycle
   before insert or update of parent_id on public.notes
   for each row execute function public.check_note_parent_cycle();
+
+create or replace function public.notes_tsv_trigger()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.tsv := to_tsvector(
+    'english',
+    coalesce(new.title, '') || ' ' || coalesce(new.content, '')
+  );
+  return new;
+end;
+$$;
+
+create trigger trig_notes_tsv
+  before insert or update of title, content on public.notes
+  for each row execute function public.notes_tsv_trigger();
 
 -- -----------------------------------------------------------------------------
 -- 2. 标签
@@ -125,7 +159,40 @@ create index idx_note_tags_tag_id on public.note_tags (tag_id);
 create index idx_note_tags_note_id on public.note_tags (note_id);
 
 -- -----------------------------------------------------------------------------
--- 4. 笔记双向链接（有向边：source → target）
+-- 4. 笔记编辑历史
+-- -----------------------------------------------------------------------------
+create table public.note_history (
+  id          uuid        primary key default gen_random_uuid(),
+  note_id     uuid        not null references public.notes (id) on delete cascade,
+  content     text,
+  title       text,
+  created_at  timestamptz not null default now()
+);
+
+comment on table public.note_history is '笔记编辑历史版本';
+
+create index idx_note_history_note_id_created_at
+  on public.note_history (note_id, created_at desc);
+
+-- -----------------------------------------------------------------------------
+-- 4b. 复习记录
+-- -----------------------------------------------------------------------------
+create table public.review_logs (
+  id           uuid        primary key default gen_random_uuid(),
+  note_id      uuid        not null references public.notes (id) on delete cascade,
+  user_id      uuid        not null references auth.users (id) on delete cascade,
+  reviewed_at  timestamptz not null default now(),
+  rating       smallint    not null check (rating >= 0 and rating <= 2)
+);
+
+comment on table public.review_logs is '笔记复习记录';
+comment on column public.review_logs.rating is '自评：0=困难，1=一般，2=简单';
+
+create index idx_review_logs_note_id on public.review_logs (note_id);
+create index idx_review_logs_user_id on public.review_logs (user_id, reviewed_at desc);
+
+-- -----------------------------------------------------------------------------
+-- 5. 笔记双向链接（有向边：source → target）
 --    - 出站：where source_note_id = ?
 --    - 反向：where target_note_id = ?  （backlinks）
 -- -----------------------------------------------------------------------------
@@ -214,6 +281,8 @@ alter table public.notes      enable row level security;
 alter table public.tags       enable row level security;
 alter table public.note_tags  enable row level security;
 alter table public.note_links enable row level security;
+alter table public.note_history enable row level security;
+alter table public.review_logs enable row level security;
 
 -- notes
 create policy "notes_select_own" on public.notes
@@ -286,6 +355,41 @@ create policy "note_links_update_own" on public.note_links
 create policy "note_links_delete_own" on public.note_links
   for delete using (auth.uid() = user_id);
 
+-- note_history
+create policy "note_history_select_own" on public.note_history
+  for select using (
+    exists (
+      select 1 from public.notes n
+      where n.id = note_history.note_id and n.user_id = auth.uid()
+    )
+  );
+
+create policy "note_history_insert_own" on public.note_history
+  for insert with check (
+    exists (
+      select 1 from public.notes n
+      where n.id = note_history.note_id and n.user_id = auth.uid()
+    )
+  );
+
+create policy "note_history_delete_own" on public.note_history
+  for delete using (
+    exists (
+      select 1 from public.notes n
+      where n.id = note_history.note_id and n.user_id = auth.uid()
+    )
+  );
+
+-- review_logs
+create policy "review_logs_select_own" on public.review_logs
+  for select using (auth.uid() = user_id);
+
+create policy "review_logs_insert_own" on public.review_logs
+  for insert with check (auth.uid() = user_id);
+
+create policy "review_logs_delete_own" on public.review_logs
+  for delete using (auth.uid() = user_id);
+
 -- -----------------------------------------------------------------------------
 -- 辅助视图：反向链接（backlinks）查询示例
 -- -----------------------------------------------------------------------------
@@ -303,3 +407,49 @@ join public.notes n on n.id = nl.source_note_id;
 comment on view public.note_backlinks is '某笔记被哪些笔记链接（反向链接）';
 
 -- 视图继承底层表 RLS；对 notes / note_links 已启用策略即可
+
+-- -----------------------------------------------------------------------------
+-- 全文搜索 RPC（前端通过 supabase.rpc('search_notes', { query_text }) 调用）
+-- -----------------------------------------------------------------------------
+create or replace function public.search_notes(query_text text)
+returns table (
+  id uuid,
+  user_id uuid,
+  parent_id uuid,
+  title text,
+  content text,
+  summary text,
+  sort_order integer,
+  deleted_at timestamptz,
+  created_at timestamptz,
+  updated_at timestamptz,
+  rank real
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select
+    n.id,
+    n.user_id,
+    n.parent_id,
+    n.title,
+    n.content,
+    n.summary,
+    n.sort_order,
+    n.deleted_at,
+    n.created_at,
+    n.updated_at,
+    ts_rank(n.tsv, plainto_tsquery('english', query_text)) as rank
+  from public.notes n
+  where n.user_id = auth.uid()
+    and n.deleted_at is null
+    and query_text is not null
+    and btrim(query_text) <> ''
+    and n.tsv @@ plainto_tsquery('english', query_text)
+  order by rank desc, n.updated_at desc
+  limit 50;
+$$;
+
+grant execute on function public.search_notes(text) to authenticated;
