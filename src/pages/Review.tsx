@@ -8,6 +8,7 @@ import {
 import { markdownToHtml } from '../lib/markdown'
 import {
   formatReviewDueDate,
+  isReviewOverdue,
   REVIEW_RATING_OPTIONS,
   type ReviewRating,
 } from '../lib/spacedRepetition'
@@ -127,10 +128,12 @@ export default function ReviewPage() {
           {!activeNote && dueNotes.length > 0 && (
             <section>
               <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
-                共 {dueNotes.length} 篇待复习
+                共 {dueNotes.length} 篇待复习 · 按到期日排序（逾期优先）
               </p>
               <ul className="space-y-2">
-                {dueNotes.map((note) => (
+                {dueNotes.map((note) => {
+                  const overdue = isReviewOverdue(note.next_review_date)
+                  return (
                   <li key={note.id}>
                     <button
                       type="button"
@@ -140,13 +143,20 @@ export default function ReviewPage() {
                       <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
                         {note.title.trim() || '未命名笔记'}
                       </span>
-                      <span className="shrink-0 text-xs text-gray-400">
+                      <span
+                        className={`shrink-0 text-xs ${
+                          overdue
+                            ? 'font-medium text-red-500 dark:text-red-400'
+                            : 'text-gray-400'
+                        }`}
+                      >
                         {formatReviewDueDate(note.next_review_date)}
                         {note.review_count > 0 && ` · 第 ${note.review_count + 1} 次`}
                       </span>
                     </button>
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             </section>
           )}

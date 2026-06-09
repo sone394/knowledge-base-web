@@ -7,6 +7,7 @@ import {
   endOfLocalDay,
   getDisabledReviewState,
   getInitialReviewState,
+  sortNotesByReviewDueDate,
   type ReviewRating,
 } from '../lib/spacedRepetition'
 import { patchNotesTreeCache } from '../lib/noteWrites'
@@ -61,7 +62,8 @@ export function useDueReviewNotes() {
     queryFn: async () => {
       if (!password) throw new Error('未解锁知识库')
       const notes = await fetchDueReviewNotes()
-      return notes.map((note) => decryptNote(note, password))
+      const decrypted = notes.map((note) => decryptNote(note, password))
+      return sortNotesByReviewDueDate(decrypted)
     },
     enabled: isUnlocked && !!password,
   })

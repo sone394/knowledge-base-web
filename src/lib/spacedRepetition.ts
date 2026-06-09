@@ -123,17 +123,54 @@ export function computeNextReviewState(
   }
 }
 
-export function formatReviewDueDate(iso: string | null): string {
-  if (!iso) return '未安排'
-  const date = new Date(iso)
+/** 到期日与今天相差的天数（负数为逾期） */
+export function getReviewDueDayOffset(iso: string | null): number | null {
+  if (!iso) return null
+  const due = startOfLocalDay(new Date(iso))
   const today = startOfLocalDay()
-  const due = startOfLocalDay(date)
-  const diffDays = Math.round(
+  return Math.round(
     (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   )
+}
+
+export function isReviewOverdue(iso: string | null): boolean {
+  const offset = getReviewDueDayOffset(iso)
+  return offset !== null && offset < 0
+}
+
+/** 用于排序的到期日时间戳（升序：越早到期越靠前，逾期优先） */
+export function getReviewDueSortKey(iso: string | null): number {
+  if (!iso) return 0
+  return startOfLocalDay(new Date(iso)).getTime()
+}
+
+type ReviewDueSortable = {
+  next_review_date: string | null
+  title?: string | null
+}
+
+/** 按到期日升序排列，同日按标题排序 */
+export function sortNotesByReviewDueDate<T extends ReviewDueSortable>(
+  notes: T[],
+): T[] {
+  return [...notes].sort((a, b) => {
+    const dateDiff =
+      getReviewDueSortKey(a.next_review_date) -
+      getReviewDueSortKey(b.next_review_date)
+    if (dateDiff !== 0) return dateDiff
+    return (a.title ?? '').localeCompare(b.title ?? '', 'zh-CN')
+  })
+}
+
+export function formatReviewDueDate(iso: string | null): string {
+  if (!iso) return '未安排'
+  const diffDays = getReviewDueDayOffset(iso)
+  if (diffDays === null) return '未安排'
 
   if (diffDays < 0) return `逾期 ${Math.abs(diffDays)} 天`
   if (diffDays === 0) return '今天'
   if (diffDays === 1) return '明天'
+
+  const date = new Date(iso)
   return `${date.getMonth() + 1}月${date.getDate()}日`
 }
