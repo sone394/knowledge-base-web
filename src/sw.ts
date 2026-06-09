@@ -1,5 +1,10 @@
 /// <reference lib="webworker" />
 
+/** Background Sync API — not included in TypeScript's webworker lib */
+interface SyncEvent extends ExtendableEvent {
+  readonly tag: string
+}
+
 import { clientsClaim } from 'workbox-core'
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
