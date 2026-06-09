@@ -55,6 +55,7 @@ export default function NoteEditor({
   } = useNoteContent(noteId)
 
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [isFocusMode, setIsFocusMode] = useState(false)
   const [focusVisible, setFocusVisible] = useState(false)
 
@@ -68,7 +69,7 @@ export default function NoteEditor({
   )
 
   const isMobile = useIsMobile()
-  const { notes, refetch: refetchNotes } = useNotes()
+  const { notes, refetch: refetchNotes, deleteNote } = useNotes()
   const toggleReview = useToggleNoteReview()
   const notesRef = useRef(notes)
   notesRef.current = notes
@@ -251,6 +252,7 @@ export default function NoteEditor({
       content={content}
       isShared={isShared}
       onOpenHistory={() => setHistoryOpen(true)}
+      onDelete={() => setDeleteConfirmOpen(true)}
     />
   )
 
@@ -411,6 +413,52 @@ export default function NoteEditor({
           void refetch()
         }}
       />
+
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div
+            className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:border dark:border-gray-700 dark:bg-gray-900"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="editor-delete-dialog-title"
+          >
+            <h3
+              id="editor-delete-dialog-title"
+              className="text-base font-semibold text-gray-900 dark:text-gray-100"
+            >
+              确认删除
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              确定要删除「{title.trim() || '未命名笔记'}」吗？其子笔记也会一并移入回收站。
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                disabled={deleteNote.isPending}
+                className="touch-target rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteNote.mutate(noteId, {
+                    onSuccess: () => {
+                      setDeleteConfirmOpen(false)
+                      onSelectNote(null)
+                    },
+                  })
+                }}
+                disabled={deleteNote.isPending}
+                className="touch-target rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteNote.isPending ? '删除中…' : '确认删除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!isFocusMode && (
         <div className="transition-opacity duration-300 ease-in-out">

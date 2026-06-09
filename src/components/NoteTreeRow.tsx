@@ -86,20 +86,42 @@ export default function NoteTreeRow({
           ? 'bg-blue-50 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/40 dark:ring-blue-700'
           : ''
 
+  const openActionsMenu = (event: MouseEvent) => {
+    onContextMenu(event, node)
+  }
+
   return (
     <div
       className={`group flex min-h-11 items-center rounded-md pr-1 hover:bg-gray-100 md:min-h-0 dark:hover:bg-gray-800 ${
         isDragging ? 'opacity-40' : ''
       } ${dropClass}`}
       style={{ paddingLeft: `${depth * TREE_INDENT_PX + 4}px` }}
-      draggable={!isRenaming}
-      onDragStart={(event) => onDragStart(event, node.id)}
-      onDragEnd={onDragEnd}
       onDragOver={(event) => onDragOver(event, node.id)}
       onDragLeave={() => onDragLeave(node.id)}
       onDrop={(event) => onDrop(event, node.id)}
-      onContextMenu={(event) => onContextMenu(event, node)}
+      onContextMenu={openActionsMenu}
     >
+      <button
+        type="button"
+        aria-label="拖动排序"
+        draggable={!isRenaming}
+        onDragStart={(event) => onDragStart(event, node.id)}
+        onDragEnd={onDragEnd}
+        onClick={(event) => event.stopPropagation()}
+        className={`hidden h-6 w-5 shrink-0 cursor-grab items-center justify-center rounded text-gray-300 opacity-0 transition-opacity hover:text-gray-500 active:cursor-grabbing group-hover:opacity-100 md:flex dark:text-gray-600 dark:hover:text-gray-400 ${
+          isRenaming ? 'invisible' : ''
+        }`}
+      >
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+          <circle cx="5" cy="4" r="1.2" />
+          <circle cx="11" cy="4" r="1.2" />
+          <circle cx="5" cy="8" r="1.2" />
+          <circle cx="11" cy="8" r="1.2" />
+          <circle cx="5" cy="12" r="1.2" />
+          <circle cx="11" cy="12" r="1.2" />
+        </svg>
+      </button>
+
       <button
         type="button"
         aria-label={isCollapsed ? '展开' : '折叠'}
@@ -134,6 +156,7 @@ export default function NoteTreeRow({
         <button
           type="button"
           onClick={() => onSelectNote(node.id)}
+          onContextMenu={openActionsMenu}
           className={`min-h-11 min-w-0 flex-1 truncate rounded px-3 py-2.5 text-left text-sm transition-colors md:min-h-0 md:px-2 md:py-1.5 ${
             isSelected
               ? 'bg-blue-50 font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
@@ -142,6 +165,25 @@ export default function NoteTreeRow({
           title={displayTitle}
         >
           <HighlightedText text={displayTitle} query={searchQuery} />
+        </button>
+      )}
+
+      {!isRenaming && (
+        <button
+          type="button"
+          aria-label="笔记操作"
+          aria-haspopup="menu"
+          onClick={(event) => {
+            event.stopPropagation()
+            openActionsMenu(event)
+          }}
+          className="touch-target hidden h-7 w-7 shrink-0 items-center justify-center rounded text-gray-400 opacity-0 transition-opacity hover:bg-gray-200 hover:text-gray-700 group-hover:opacity-100 md:flex dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+            <circle cx="12" cy="5" r="1.75" />
+            <circle cx="12" cy="12" r="1.75" />
+            <circle cx="12" cy="19" r="1.75" />
+          </svg>
         </button>
       )}
     </div>

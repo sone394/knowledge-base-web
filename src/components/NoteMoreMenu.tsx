@@ -8,6 +8,7 @@ type NoteMoreMenuProps = {
   content: string
   isShared: boolean
   onOpenHistory: () => void
+  onDelete?: () => void
 }
 
 export default function NoteMoreMenu({
@@ -16,6 +17,7 @@ export default function NoteMoreMenu({
   content,
   isShared,
   onOpenHistory,
+  onDelete,
 }: NoteMoreMenuProps) {
   const [open, setOpen] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -172,6 +174,23 @@ export default function NoteMoreMenu({
           >
             历史版本
           </button>
+
+          {onDelete && (
+            <>
+              <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  close()
+                  onDelete()
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+              >
+                删除笔记
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

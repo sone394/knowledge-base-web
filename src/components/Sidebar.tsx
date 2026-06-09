@@ -2,11 +2,13 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { useAutoExportSettings } from '../hooks/useAutoExport'
 import { useNotes, type NoteTreeNode } from '../hooks/useNotes'
@@ -96,6 +98,7 @@ export default function Sidebar({
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<NoteTreeNode | null>(null)
@@ -122,17 +125,23 @@ export default function Sidebar({
   useEffect(() => {
     if (!contextMenu) return
 
-    const handleClick = () => closeContextMenu()
+    const handlePointerDown = (event: globalThis.MouseEvent) => {
+      if (contextMenuRef.current?.contains(event.target as Node)) return
+      closeContextMenu()
+    }
     const handleScroll = () => closeContextMenu()
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') closeContextMenu()
+    }
 
-    window.addEventListener('click', handleClick)
+    window.addEventListener('mousedown', handlePointerDown)
     window.addEventListener('scroll', handleScroll, true)
-    window.addEventListener('contextmenu', handleClick)
+    window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      window.removeEventListener('click', handleClick)
+      window.removeEventListener('mousedown', handlePointerDown)
       window.removeEventListener('scroll', handleScroll, true)
-      window.removeEventListener('contextmenu', handleClick)
+      window.removeEventListener('keydown', handleKeyDown)
     }
   }, [contextMenu, closeContextMenu])
 
@@ -147,6 +156,7 @@ export default function Sidebar({
 
   const handleContextMenu = (event: MouseEvent, note: NoteTreeNode) => {
     event.preventDefault()
+    event.stopPropagation()
     setContextMenu({ x: event.clientX, y: event.clientY, note })
   }
 
@@ -673,36 +683,40 @@ export default function Sidebar({
         )}
       </div>
 
-      {contextMenu && (
-        <div
-          className="fixed z-50 min-w-[140px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <button
-            type="button"
-            className="touch-target flex w-full items-center px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            onClick={() => openTemplatePicker(contextMenu.note)}
+      {contextMenu &&
+        createPortal(
+          <div
+            ref={contextMenuRef}
+            className="fixed z-[100] min-w-[140px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={(event) => event.stopPropagation()}
+            onContextMenu={(event) => event.preventDefault()}
           >
-            新建子笔记
-          </button>
-          <button
-            type="button"
-            className="touch-target flex w-full items-center px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            onClick={() => handleStartRename(contextMenu.note)}
-          >
-            重命名
-          </button>
-          <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
-          <button
-            type="button"
-            className="touch-target flex w-full items-center px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-            onClick={() => handleRequestDelete(contextMenu.note)}
-          >
-            删除
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              className="touch-target flex w-full items-center px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+              onClick={() => openTemplatePicker(contextMenu.note)}
+            >
+              新建子笔记
+            </button>
+            <button
+              type="button"
+              className="touch-target flex w-full items-center px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+              onClick={() => handleStartRename(contextMenu.note)}
+            >
+              重命名
+            </button>
+            <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+            <button
+              type="button"
+              className="touch-target flex w-full items-center px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+              onClick={() => handleRequestDelete(contextMenu.note)}
+            >
+              删除
+            </button>
+          </div>,
+          document.body,
+        )}
 
       {templatePicker && (
         <NoteTemplatePicker
