@@ -3,8 +3,11 @@ import AutoExportWatcher from './components/AutoExportWatcher'
 import OfflineIndicator from './components/OfflineIndicator'
 import SupabaseConfigBanner from './components/SupabaseConfigBanner'
 import ProtectedRoute from './components/ProtectedRoute'
+import GuestOnlyRoute from './components/GuestOnlyRoute'
 import EncryptionGate from './components/EncryptionGate'
+import Auth from './components/Auth'
 import Home from './pages/Home'
+import Register from './pages/Register'
 import NoteEditor from './pages/NoteEditor'
 import Graph from './pages/Graph'
 import Trash from './pages/Trash'
@@ -43,6 +46,22 @@ function App() {
   return (
     <Routes>
       <Route path="/share/:noteId" element={<ShareNote />} />
+      <Route
+        path="/login"
+        element={
+          <GuestOnlyRoute>
+            <Auth />
+          </GuestOnlyRoute>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <GuestOnlyRoute>
+            <Register />
+          </GuestOnlyRoute>
+        }
+      />
       <Route path="*" element={<AuthenticatedApp />} />
     </Routes>
   )

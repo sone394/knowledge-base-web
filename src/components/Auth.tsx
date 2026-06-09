@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import ThemeToggle from './ThemeToggle'
 
@@ -93,8 +94,14 @@ export default function Auth() {
           </button>
         </form>
 
-        <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
-          请先在 Supabase 控制台创建用户（Authentication → Users → Add user）。
+        <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
+          没有账号？{' '}
+          <Link
+            to="/register"
+            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+          >
+            去注册
+          </Link>
         </p>
       </div>
     </div>
