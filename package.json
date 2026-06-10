@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
-    "deploy:cf": "npm run build && wrangler pages deploy dist --project-name=knowledge-base-web-bpo"
+    "deploy:cf": "npm run build && wrangler pages deploy dist --project-name=knowledge-base-web"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.7.6",
