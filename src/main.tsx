@@ -25,7 +25,12 @@ initOutboxSync(() => {
   void queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
 })
 
-registerSW({ immediate: true })
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    void updateSW(true)
+  },
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

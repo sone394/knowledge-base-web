@@ -8,7 +8,7 @@ interface SyncEvent extends ExtendableEvent {
 import { clientsClaim } from 'workbox-core'
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
-import { NetworkOnly } from 'workbox-strategies'
+import { NetworkFirst, NetworkOnly } from 'workbox-strategies'
 import { BackgroundSyncPlugin } from 'workbox-background-sync'
 import {
   OUTBOX_SYNC_TAG,
@@ -20,6 +20,15 @@ declare let self: ServiceWorkerGlobalScope
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 clientsClaim()
+
+/** 导航请求优先走网络，避免 index.html 被旧 Service Worker 缓存 */
+registerRoute(
+  ({ request }) => request.mode === 'navigate',
+  new NetworkFirst({
+    cacheName: 'kb-pages',
+    networkTimeoutSeconds: 5,
+  }),
+)
 
 const supabaseWriteSync = new BackgroundSyncPlugin(WORKBOX_WRITE_QUEUE, {
   maxRetentionTime: 24 * 60,

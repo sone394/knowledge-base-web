@@ -267,7 +267,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
       <ToolbarDropdown
         title="更多标题"
         active={headingActive(4) || headingActive(5) || headingActive(6)}
-        label={<span className="text-xs font-semibold">Hn</span>}
+        label={<span className="text-xs font-semibold">H4+</span>}
       >
         {[4, 5, 6].map((level) => (
           <DropdownItem
