@@ -10,7 +10,7 @@ import { useIsMobile } from '../hooks/useMediaQuery'
 import {
   formatSavedTime,
   htmlToMarkdown,
-  markdownToHtml,
+  markdownToEditorHtml,
 } from '../lib/markdown'
 import { countNoteCharacters } from '../lib/noteText'
 import { NoteLinkExtension } from '../lib/tiptap/noteLinkExtension'
@@ -158,7 +158,9 @@ export default function NoteEditor({
     if (!editor || !note || isLoading) return
     if (loadedNoteIdRef.current === noteId) return
 
-    editor.commands.setContent(markdownToHtml(note.content), { emitUpdate: false })
+    editor.commands.setContent(markdownToEditorHtml(note.content), {
+      emitUpdate: false,
+    })
     loadedNoteIdRef.current = noteId
   }, [editor, note, noteId, isLoading])
 

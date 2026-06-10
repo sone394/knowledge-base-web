@@ -44,6 +44,27 @@ export function preprocessWikiLinks(markdown: string): string {
   )
 }
 
+/** 将 Markdown 软换行提升为段落分隔，避免多行被合并为同一段 */
+function paragraphizeSoftBreaks(markdown: string): string {
+  const lines = markdown.split('\n')
+  const result: string[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    result.push(lines[i])
+    if (i >= lines.length - 1) continue
+
+    const current = lines[i]
+    const next = lines[i + 1]
+
+    if (current.trim() === '' || next.trim() === '') continue
+    if (/^\s*([#>\-*]|\d+\.)/.test(next)) continue
+
+    result.push('')
+  }
+
+  return result.join('\n')
+}
+
 /** Markdown → HTML，供 TipTap 加载 */
 export function markdownToHtml(markdown: string): string {
   const trimmed = markdown.trim()
@@ -52,10 +73,40 @@ export function markdownToHtml(markdown: string): string {
   return marked.parse(preprocessWikiLinks(trimmed), { async: false }) as string
 }
 
+/** Markdown → HTML，供编辑器加载（软换行会拆成独立段落） */
+export function markdownToEditorHtml(markdown: string): string {
+  const trimmed = markdown.trim()
+  if (!trimmed) return ''
+  if (trimmed.startsWith('<')) return markdown
+  return marked.parse(
+    preprocessWikiLinks(paragraphizeSoftBreaks(trimmed)),
+    { async: false },
+  ) as string
+}
+
+/** 将标题内的软换行拆成独立块，避免保存后再加载时多行重新粘成同一标题 */
+function splitHeadingBreaksInHtml(html: string): string {
+  return html.replace(
+    /<h([1-3])>([\s\S]*?)<\/h\1>/gi,
+    (_match, level: string, inner: string) => {
+      if (!/<br\s*\/?>/i.test(inner)) return _match
+      const parts = inner
+        .split(/<br\s*\/?>/i)
+        .map((part) => part.trim())
+        .filter(Boolean)
+      return parts
+        .map((part, index) =>
+          index === 0 ? `<h${level}>${part}</h${level}>` : `<p>${part}</p>`,
+        )
+        .join('')
+    },
+  )
+}
+
 /** HTML → Markdown，供保存到 Supabase */
 export function htmlToMarkdown(html: string): string {
   if (!html || html === '<p></p>') return ''
-  return turndown.turndown(html).trim()
+  return turndown.turndown(splitHeadingBreaksInHtml(html)).trim()
 }
 
 /** 格式化最后保存时间 */

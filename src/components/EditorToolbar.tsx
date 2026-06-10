@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/react'
+import { toggleHeadingOnCurrentLine } from '../lib/tiptap/headingCommands'
 
 type EditorToolbarProps = {
   editor: Editor | null
@@ -60,7 +61,7 @@ export default function EditorToolbar({ editor }: EditorToolbarProps) {
       <Divider />
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        onClick={() => toggleHeadingOnCurrentLine(editor, 1)}
         active={editor.isActive('heading', { level: 1 })}
         title="一级标题"
       >
@@ -68,7 +69,7 @@ export default function EditorToolbar({ editor }: EditorToolbarProps) {
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        onClick={() => toggleHeadingOnCurrentLine(editor, 2)}
         active={editor.isActive('heading', { level: 2 })}
         title="二级标题"
       >
@@ -76,7 +77,7 @@ export default function EditorToolbar({ editor }: EditorToolbarProps) {
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+        onClick={() => toggleHeadingOnCurrentLine(editor, 3)}
         active={editor.isActive('heading', { level: 3 })}
         title="三级标题"
       >
