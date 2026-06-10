@@ -214,16 +214,64 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
     }
   }
 
-  const { imageActive, tableActive } = useEditorState({
+  const {
+    imageActive,
+    tableActive,
+    canUndo,
+    canRedo,
+    headingLevels,
+    bold,
+    italic,
+    strike,
+    underline,
+    link,
+    table,
+    taskList,
+    blockquote,
+    bulletList,
+    orderedList,
+    codeBlock,
+    textAlign,
+    tableCommands,
+  } = useEditorState({
     editor,
     selector: ({ editor: ed }) => ({
       imageActive: ed.isActive('image'),
       tableActive: isInTable(ed),
+      canUndo: ed.can().undo(),
+      canRedo: ed.can().redo(),
+      headingLevels: [1, 2, 3, 4, 5, 6].map((level) =>
+        ed.isActive('heading', { level }),
+      ),
+      bold: ed.isActive('bold'),
+      italic: ed.isActive('italic'),
+      strike: ed.isActive('strike'),
+      underline: ed.isActive('underline'),
+      link: ed.isActive('link'),
+      table: ed.isActive('table'),
+      taskList: ed.isActive('taskList'),
+      blockquote: ed.isActive('blockquote'),
+      bulletList: ed.isActive('bulletList'),
+      orderedList: ed.isActive('orderedList'),
+      codeBlock: ed.isActive('codeBlock'),
+      textAlign: {
+        left: ed.isActive({ textAlign: 'left' }),
+        center: ed.isActive({ textAlign: 'center' }),
+        right: ed.isActive({ textAlign: 'right' }),
+        justify: ed.isActive({ textAlign: 'justify' }),
+      },
+      tableCommands: {
+        addRowBefore: ed.can().addRowBefore(),
+        addRowAfter: ed.can().addRowAfter(),
+        addColumnBefore: ed.can().addColumnBefore(),
+        addColumnAfter: ed.can().addColumnAfter(),
+        deleteRow: ed.can().deleteRow(),
+        deleteColumn: ed.can().deleteColumn(),
+      },
     }),
   })
 
-  const headingActive = (level: number) =>
-    editor.isActive('heading', { level })
+  const headingActive = (level: number) => headingLevels[level - 1] ?? false
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 dark:border-gray-700 dark:bg-gray-800/50">
@@ -258,7 +306,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
       {/* 撤销 / 重做 */}
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().undo().run())}
-        disabled={!editor.can().undo()}
+        disabled={!canUndo}
         title="撤销 (Ctrl+Z)"
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
@@ -267,7 +315,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
       </ToolbarButton>
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().redo().run())}
-        disabled={!editor.can().redo()}
+        disabled={!canRedo}
         title="重做 (Ctrl+Y)"
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
@@ -348,28 +396,28 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
       {/* 文字样式 */}
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().toggleBold().run())}
-        active={editor.isActive('bold')}
+        active={bold}
         title="加粗 (Ctrl+B)"
       >
         <strong className="text-xs font-bold">B</strong>
       </ToolbarButton>
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().toggleItalic().run())}
-        active={editor.isActive('italic')}
+        active={italic}
         title="斜体 (Ctrl+I)"
       >
         <em className="text-xs italic">I</em>
       </ToolbarButton>
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().toggleStrike().run())}
-        active={editor.isActive('strike')}
+        active={strike}
         title="删除线"
       >
         <span className="text-xs line-through">S</span>
       </ToolbarButton>
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().toggleUnderline().run())}
-        active={editor.isActive('underline')}
+        active={underline}
         title="下划线 (Ctrl+U)"
       >
         <span className="text-xs underline">U</span>
@@ -414,7 +462,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
             editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run(),
           )
         }}
-        active={editor.isActive('link')}
+        active={link}
         title="插入链接"
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
@@ -443,7 +491,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
       </ToolbarButton>
       <ToolbarDropdown
         title="插入表格"
-        active={editor.isActive('table')}
+        active={table}
         label={
           <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
             <path d="M3 4h14v12H3V4zm2 2v3h4V6H5zm6 0v3h4V6h-4zM5 11v3h4v-3H5zm6 0v3h4v-3h-4z" />
@@ -481,14 +529,14 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
           <Divider />
           <ToolbarButton
             onClick={() => run(() => editor.chain().focus().addRowAfter().run())}
-            disabled={!editor.can().addRowAfter()}
+            disabled={!tableCommands.addRowAfter}
             title="在下方插入一行"
           >
             <span className="text-xs font-medium">+行</span>
           </ToolbarButton>
           <ToolbarButton
             onClick={() => run(() => editor.chain().focus().addColumnAfter().run())}
-            disabled={!editor.can().addColumnAfter()}
+            disabled={!tableCommands.addColumnAfter}
             title="在右侧插入一列"
           >
             <span className="text-xs font-medium">+列</span>
@@ -499,38 +547,38 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
             label={<span className="text-xs font-semibold">表格</span>}
           >
             <DropdownItem
-              disabled={!editor.can().addRowBefore()}
+              disabled={!tableCommands.addRowBefore}
               onClick={() => run(() => editor.chain().focus().addRowBefore().run())}
             >
               在上方插入行
             </DropdownItem>
             <DropdownItem
-              disabled={!editor.can().addRowAfter()}
+              disabled={!tableCommands.addRowAfter}
               onClick={() => run(() => editor.chain().focus().addRowAfter().run())}
             >
               在下方插入行
             </DropdownItem>
             <DropdownItem
-              disabled={!editor.can().addColumnBefore()}
+              disabled={!tableCommands.addColumnBefore}
               onClick={() => run(() => editor.chain().focus().addColumnBefore().run())}
             >
               在左侧插入列
             </DropdownItem>
             <DropdownItem
-              disabled={!editor.can().addColumnAfter()}
+              disabled={!tableCommands.addColumnAfter}
               onClick={() => run(() => editor.chain().focus().addColumnAfter().run())}
             >
               在右侧插入列
             </DropdownItem>
             <DropdownDivider />
             <DropdownItem
-              disabled={!editor.can().deleteRow()}
+              disabled={!tableCommands.deleteRow}
               onClick={() => run(() => editor.chain().focus().deleteRow().run())}
             >
               删除当前行
             </DropdownItem>
             <DropdownItem
-              disabled={!editor.can().deleteColumn()}
+              disabled={!tableCommands.deleteColumn}
               onClick={() => run(() => editor.chain().focus().deleteColumn().run())}
             >
               删除当前列
@@ -547,7 +595,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
 
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().toggleTaskList().run())}
-        active={editor.isActive('taskList')}
+        active={taskList}
         title="待办清单"
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
@@ -577,7 +625,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
         </DropdownItem>
         <DropdownItem
           onClick={() => run(() => editor.chain().focus().toggleBlockquote().run())}
-          active={editor.isActive('blockquote')}
+          active={blockquote}
         >
           引用块
         </DropdownItem>
@@ -613,7 +661,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
       {/* 列表 */}
       <ToolbarDropdown
         title="列表"
-        active={editor.isActive('bulletList') || editor.isActive('orderedList')}
+        active={bulletList || orderedList}
         label={
           <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
             <path d="M3 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0 4a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0 4a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm3-8h11a1 1 0 110 2H6a1 1 0 110-2zm0 4h11a1 1 0 110 2H6a1 1 0 110-2zm0 4h11a1 1 0 110 2H6a1 1 0 110-2z" />
@@ -621,19 +669,19 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
         }
       >
         <DropdownItem
-          active={editor.isActive('bulletList')}
+          active={bulletList}
           onClick={() => run(() => editor.chain().focus().toggleBulletList().run())}
         >
           无序列表
         </DropdownItem>
         <DropdownItem
-          active={editor.isActive('orderedList')}
+          active={orderedList}
           onClick={() => run(() => editor.chain().focus().toggleOrderedList().run())}
         >
           有序列表
         </DropdownItem>
         <DropdownItem
-          active={editor.isActive('taskList')}
+          active={taskList}
           onClick={() => run(() => editor.chain().focus().toggleTaskList().run())}
         >
           待办清单
@@ -659,7 +707,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
         ).map(([align, label]) => (
           <DropdownItem
             key={align}
-            active={editor.isActive({ textAlign: align })}
+            active={textAlign[align]}
             onClick={() =>
               run(() => editor.chain().focus().setTextAlign(align).run())
             }
@@ -737,7 +785,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
       {/* 代码块 */}
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().toggleCodeBlock().run())}
-        active={editor.isActive('codeBlock')}
+        active={codeBlock}
         title="代码块"
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
