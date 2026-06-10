@@ -59,7 +59,15 @@
   }
 
   .note-editor-content img.note-editor-image {
-    @apply my-4 max-w-full rounded-lg;
+    @apply my-4 max-w-full cursor-pointer rounded-lg;
+  }
+
+  .note-editor-content img.note-editor-image.ProseMirror-selectednode {
+    @apply ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-950;
+  }
+
+  .note-editor-content table.ProseMirror-selectednode {
+    @apply ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-950;
   }
 
   .note-editor-content a.note-attachment {

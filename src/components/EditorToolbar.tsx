@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
+import { useEditorState } from '@tiptap/react'
 import { toggleHeadingOnCurrentLine } from '../lib/tiptap/headingCommands'
 import type { CalloutType } from '../lib/tiptap/calloutExtension'
 import {
@@ -78,10 +79,20 @@ function Divider() {
   return <span className="mx-0.5 h-5 w-px bg-gray-200 dark:bg-gray-700" />
 }
 
-export default function EditorToolbar({
-  editor,
-  onFocusMode,
-}: EditorToolbarProps) {
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h8M9 7V5h2v2M7 7l1 10h4l1-10" />
+    </svg>
+  )
+}
+
+type EditorToolbarContentProps = {
+  editor: Editor
+  onFocusMode?: () => void
+}
+
+function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps) {
   const { user } = useAuth()
   const imageInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -147,7 +158,13 @@ export default function EditorToolbar({
     }
   }
 
-  if (!editor) return null
+  const { imageActive, tableActive } = useEditorState({
+    editor,
+    selector: ({ editor: ed }) => ({
+      imageActive: ed.isActive('image'),
+      tableActive: ed.isActive('table'),
+    }),
+  })
 
   const headingActive = (level: number) =>
     editor.isActive('heading', { level })
@@ -385,6 +402,52 @@ export default function EditorToolbar({
           <path d="M3 4h14v12H3V4zm2 2v3h4V6H5zm6 0v3h4V6h-4zM5 11v3h4v-3H5zm6 0v3h4v-3h-4z" />
         </svg>
       </ToolbarButton>
+
+      {imageActive && (
+        <>
+          <Divider />
+          <ToolbarButton
+            onClick={() => run(() => editor.chain().focus().deleteSelection().run())}
+            title="删除图片"
+          >
+            <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+              <DeleteIcon />
+              删图
+            </span>
+          </ToolbarButton>
+        </>
+      )}
+
+      {tableActive && (
+        <>
+          <Divider />
+          <ToolbarDropdown
+            title="表格操作"
+            active
+            label={<span className="text-xs font-semibold">表格</span>}
+          >
+            <DropdownItem
+              disabled={!editor.can().deleteRow()}
+              onClick={() => run(() => editor.chain().focus().deleteRow().run())}
+            >
+              删除当前行
+            </DropdownItem>
+            <DropdownItem
+              disabled={!editor.can().deleteColumn()}
+              onClick={() => run(() => editor.chain().focus().deleteColumn().run())}
+            >
+              删除当前列
+            </DropdownItem>
+            <DropdownItem
+              disabled={!editor.can().deleteTable()}
+              onClick={() => run(() => editor.chain().focus().deleteTable().run())}
+            >
+              <span className="text-red-600 dark:text-red-400">删除整张表格</span>
+            </DropdownItem>
+          </ToolbarDropdown>
+        </>
+      )}
+
       <ToolbarButton
         onClick={() => run(() => editor.chain().focus().toggleTaskList().run())}
         active={editor.isActive('taskList')}
@@ -597,4 +660,12 @@ export default function EditorToolbar({
       )}
     </div>
   )
+}
+
+export default function EditorToolbar({
+  editor,
+  onFocusMode,
+}: EditorToolbarProps) {
+  if (!editor) return null
+  return <EditorToolbarContent editor={editor} onFocusMode={onFocusMode} />
 }

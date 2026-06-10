@@ -19,6 +19,11 @@ import { CalloutExtension } from './calloutExtension'
 import { CommentExtension } from './commentExtension'
 import { MathBlockExtension, MathInlineExtension } from './mathExtension'
 
+/** 块级图片默认可点击选中，便于删除 */
+const SelectableImage = Image.extend({
+  selectable: true,
+})
+
 export type CreateEditorExtensionsOptions = {
   noteLinkExtension: AnyExtension
   placeholder?: string
@@ -43,7 +48,7 @@ export function createEditorExtensions({
       openOnClick: false,
       HTMLAttributes: { class: 'text-blue-600 underline' },
     }),
-    Image.configure({
+    SelectableImage.configure({
       inline: false,
       allowBase64: true,
       HTMLAttributes: { class: 'note-editor-image' },

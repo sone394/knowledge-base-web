@@ -64,17 +64,20 @@ export default function ToolbarDropdown({
 export function DropdownItem({
   onClick,
   active = false,
+  disabled = false,
   children,
 }: {
   onClick: () => void
   active?: boolean
+  disabled?: boolean
   children: ReactNode
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+      disabled={disabled}
+      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
         active
           ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
           : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60'
