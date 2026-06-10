@@ -227,6 +227,13 @@ export default function EditorToolbar({
 
       {/* 标题 */}
       <ToolbarButton
+        onClick={() => run(() => toggleHeadingOnCurrentLine(editor, 1))}
+        active={headingActive(1)}
+        title="一级标题"
+      >
+        <span className="text-xs font-semibold">H1</span>
+      </ToolbarButton>
+      <ToolbarButton
         onClick={() => run(() => toggleHeadingOnCurrentLine(editor, 2))}
         active={headingActive(2)}
         title="二级标题"
@@ -242,10 +249,10 @@ export default function EditorToolbar({
       </ToolbarButton>
       <ToolbarDropdown
         title="更多标题"
-        active={headingActive(1) || headingActive(4) || headingActive(5) || headingActive(6)}
+        active={headingActive(4) || headingActive(5) || headingActive(6)}
         label={<span className="text-xs font-semibold">Hn</span>}
       >
-        {[1, 4, 5, 6].map((level) => (
+        {[4, 5, 6].map((level) => (
           <DropdownItem
             key={level}
             active={headingActive(level)}

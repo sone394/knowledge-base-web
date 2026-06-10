@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
   useMutation,
   useQuery,
@@ -8,7 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { useEncryption } from '../context/EncryptionContext'
 import { decryptNote, decryptNotes } from '../lib/noteCrypto'
 import { searchNotesRpc } from '../lib/noteSearch'
-import { isOnline } from '../lib/network'
+import { isOnline, withTimeout } from '../lib/network'
 import {
   createNoteWrite,
   deleteNoteWrite,
@@ -28,13 +29,19 @@ import {
 } from './utils/noteTree'
 import type { NoteTreeNode } from '../../types/database'
 
+const NOTES_FETCH_TIMEOUT_MS = 20_000
+
 async function fetchNotesFromDb(): Promise<Note[]> {
-  const { data, error } = await supabase
-    .from('notes')
-    .select('*')
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true })
+  const { data, error } = await withTimeout(
+    supabase
+      .from('notes')
+      .select('*')
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
+    NOTES_FETCH_TIMEOUT_MS,
+    '加载笔记超时，请检查网络后刷新',
+  )
 
   if (error) throw error
   return data ?? []
@@ -136,6 +143,21 @@ export function useNotes() {
       void saveNotesSnapshot(user.id, notes)
     }
   }
+
+  // 刷新后 React Query 缓存为空，先从 IndexedDB 恢复快照，避免长时间卡在「加载中」
+  useEffect(() => {
+    if (!user || !isUnlocked || !password) return
+
+    const cached = queryClient.getQueryData<Note[]>(queryKeys.notes.tree())
+    if (cached !== undefined) return
+
+    void loadNotesSnapshot(user.id).then((snapshot) => {
+      if (snapshot === null) return
+      queryClient.setQueryData<Note[]>(queryKeys.notes.tree(), (current) =>
+        current === undefined ? snapshot : current,
+      )
+    })
+  }, [user, isUnlocked, password, queryClient])
 
   const query = useQuery({
     queryKey: queryKeys.notes.tree(),
@@ -267,7 +289,8 @@ export function useNotes() {
     notes: query.data ?? [],
     tree,
     flatNotes,
-    isLoading: query.isLoading,
+    isLoading: query.isLoading && query.data === undefined,
+    isFetching: query.isFetching,
     isError: query.isError,
     error: query.error,
     refetch: query.refetch,

@@ -2,7 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -39,7 +39,7 @@ export function EncryptionProvider({ children }: { children: ReactNode }) {
 
   const userId = user?.id ?? null
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!userId) {
       setPassword(null)
       setIsConfigured(false)

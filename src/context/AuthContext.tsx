@@ -24,19 +24,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: current } }) => {
-      setSession(current)
+    let cancelled = false
+
+    const finishLoading = (nextSession: Session | null) => {
+      if (cancelled) return
+      setSession(nextSession)
       setLoading(false)
+    }
+
+    const sessionPromise = supabase.auth.getSession()
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('登录状态加载超时')), 15_000)
     })
+
+    Promise.race([sessionPromise, timeoutPromise])
+      .then(({ data: { session: current } }) => finishLoading(current))
+      .catch(() => finishLoading(null))
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession)
-      setLoading(false)
+      finishLoading(nextSession)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signOut = useCallback(async () => {
