@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { toggleHeadingOnCurrentLine } from '../lib/tiptap/headingCommands'
+import { deleteTableInEditor, isInTable } from '../lib/tiptap/tableCommands'
 import type { CalloutType } from '../lib/tiptap/calloutExtension'
 import {
   activateFormatPainter,
@@ -43,6 +44,32 @@ const CALLOUT_TYPES: { type: CalloutType; label: string }[] = [
   { type: 'warning', label: '注意警告' },
   { type: 'danger', label: '危险提醒' },
 ]
+
+const TABLE_PRESETS = [
+  { label: '2 × 2', rows: 2, cols: 2 },
+  { label: '3 × 3', rows: 3, cols: 3 },
+  { label: '4 × 4', rows: 4, cols: 4 },
+  { label: '5 × 5', rows: 5, cols: 5 },
+  { label: '3 × 5（宽表）', rows: 3, cols: 5 },
+  { label: '5 × 3（长表）', rows: 5, cols: 3 },
+] as const
+
+const TABLE_SIZE_MAX = 20
+
+function parseTableSizeInput(input: string): { rows: number; cols: number } | null {
+  const normalized = input.replace(/[xX*×]/g, ' ').trim()
+  const parts = normalized.split(/\s+/).filter(Boolean)
+  if (parts.length !== 2) return null
+
+  const rows = Number.parseInt(parts[0], 10)
+  const cols = Number.parseInt(parts[1], 10)
+  if (!Number.isFinite(rows) || !Number.isFinite(cols)) return null
+  if (rows < 1 || cols < 1 || rows > TABLE_SIZE_MAX || cols > TABLE_SIZE_MAX) {
+    return null
+  }
+
+  return { rows, cols }
+}
 
 function ToolbarButton({
   onClick,
@@ -112,6 +139,32 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
     return value?.trim() ?? null
   }
 
+  const insertTable = (rows: number, cols: number) => {
+    run(() =>
+      editor
+        .chain()
+        .focus()
+        .insertTable({ rows, cols, withHeaderRow: true })
+        .run(),
+    )
+  }
+
+  const promptCustomTableSize = () => {
+    const input = promptText(
+      `自定义表格大小（行×列，1–${TABLE_SIZE_MAX}，如 4×6）`,
+      '4×4',
+    )
+    if (!input) return
+
+    const size = parseTableSizeInput(input)
+    if (!size) {
+      window.alert(`请输入有效大小，行和列均为 1–${TABLE_SIZE_MAX} 的整数，如 4×6`)
+      return
+    }
+
+    insertTable(size.rows, size.cols)
+  }
+
   const handleFormatPainter = () => {
     if (!editor) return
     if (painterActive) {
@@ -162,7 +215,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
     editor,
     selector: ({ editor: ed }) => ({
       imageActive: ed.isActive('image'),
-      tableActive: ed.isActive('table'),
+      tableActive: isInTable(ed),
     }),
   })
 
@@ -385,23 +438,25 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
           <path strokeLinecap="round" d="M3 14l3.5-3.5 3 3L14 9l3 3" />
         </svg>
       </ToolbarButton>
-      <ToolbarButton
-        onClick={() =>
-          run(() =>
-            editor
-              .chain()
-              .focus()
-              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-              .run(),
-          )
-        }
-        active={editor.isActive('table')}
+      <ToolbarDropdown
         title="插入表格"
+        active={editor.isActive('table')}
+        label={
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
+            <path d="M3 4h14v12H3V4zm2 2v3h4V6H5zm6 0v3h4V6h-4zM5 11v3h4v-3H5zm6 0v3h4v-3h-4z" />
+          </svg>
+        }
       >
-        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
-          <path d="M3 4h14v12H3V4zm2 2v3h4V6H5zm6 0v3h4V6h-4zM5 11v3h4v-3H5zm6 0v3h4v-3h-4z" />
-        </svg>
-      </ToolbarButton>
+        {TABLE_PRESETS.map((preset) => (
+          <DropdownItem
+            key={preset.label}
+            onClick={() => insertTable(preset.rows, preset.cols)}
+          >
+            {preset.label}
+          </DropdownItem>
+        ))}
+        <DropdownItem onClick={promptCustomTableSize}>自定义大小…</DropdownItem>
+      </ToolbarDropdown>
 
       {imageActive && (
         <>
@@ -421,11 +476,48 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
       {tableActive && (
         <>
           <Divider />
-          <ToolbarDropdown
-            title="表格操作"
-            active
-            label={<span className="text-xs font-semibold">表格</span>}
+          <ToolbarButton
+            onClick={() => run(() => editor.chain().focus().addRowAfter().run())}
+            disabled={!editor.can().addRowAfter()}
+            title="在下方插入一行"
           >
+            <span className="text-xs font-medium">+行</span>
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => run(() => editor.chain().focus().addColumnAfter().run())}
+            disabled={!editor.can().addColumnAfter()}
+            title="在右侧插入一列"
+          >
+            <span className="text-xs font-medium">+列</span>
+          </ToolbarButton>
+          <ToolbarDropdown
+            title="更多表格操作"
+            label={<span className="text-xs font-semibold">行列</span>}
+          >
+            <DropdownItem
+              disabled={!editor.can().addRowBefore()}
+              onClick={() => run(() => editor.chain().focus().addRowBefore().run())}
+            >
+              在上方插入行
+            </DropdownItem>
+            <DropdownItem
+              disabled={!editor.can().addRowAfter()}
+              onClick={() => run(() => editor.chain().focus().addRowAfter().run())}
+            >
+              在下方插入行
+            </DropdownItem>
+            <DropdownItem
+              disabled={!editor.can().addColumnBefore()}
+              onClick={() => run(() => editor.chain().focus().addColumnBefore().run())}
+            >
+              在左侧插入列
+            </DropdownItem>
+            <DropdownItem
+              disabled={!editor.can().addColumnAfter()}
+              onClick={() => run(() => editor.chain().focus().addColumnAfter().run())}
+            >
+              在右侧插入列
+            </DropdownItem>
             <DropdownItem
               disabled={!editor.can().deleteRow()}
               onClick={() => run(() => editor.chain().focus().deleteRow().run())}
@@ -438,13 +530,16 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
             >
               删除当前列
             </DropdownItem>
-            <DropdownItem
-              disabled={!editor.can().deleteTable()}
-              onClick={() => run(() => editor.chain().focus().deleteTable().run())}
-            >
-              <span className="text-red-600 dark:text-red-400">删除整张表格</span>
-            </DropdownItem>
           </ToolbarDropdown>
+          <ToolbarButton
+            onClick={() => run(() => deleteTableInEditor(editor))}
+            title="删除整张表格"
+          >
+            <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+              <DeleteIcon />
+              删表
+            </span>
+          </ToolbarButton>
         </>
       )}
 

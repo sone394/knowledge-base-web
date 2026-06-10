@@ -220,10 +220,18 @@ function splitHeadingBreaksInHtml(html: string): string {
   )
 }
 
+/** 去掉 resizable 表格的外层包裹，避免 Turndown 无法识别 */
+function stripTableWrapper(html: string): string {
+  return html.replace(
+    /<div class="tableWrapper">\s*(<table[\s\S]*?<\/table>)\s*<\/div>/gi,
+    '$1',
+  )
+}
+
 /** HTML → Markdown，供保存到 Supabase */
 export function htmlToMarkdown(html: string): string {
   if (!html || html === '<p></p>') return ''
-  return turndown.turndown(splitHeadingBreaksInHtml(html)).trim()
+  return turndown.turndown(splitHeadingBreaksInHtml(stripTableWrapper(html))).trim()
 }
 
 /** 格式化最后保存时间 */

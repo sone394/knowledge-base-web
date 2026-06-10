@@ -24,6 +24,16 @@ const SelectableImage = Image.extend({
   selectable: true,
 })
 
+/** 兼容 resizable 模式保存的 tableWrapper 包裹层 */
+const ResizableTable = Table.extend({
+  parseHTML() {
+    return [
+      { tag: 'table' },
+      { tag: 'div.tableWrapper', contentElement: 'table' },
+    ]
+  },
+})
+
 export type CreateEditorExtensionsOptions = {
   noteLinkExtension: AnyExtension
   placeholder?: string
@@ -53,7 +63,7 @@ export function createEditorExtensions({
       allowBase64: true,
       HTMLAttributes: { class: 'note-editor-image' },
     }),
-    Table.configure({ resizable: true }),
+    ResizableTable.configure({ resizable: true, allowTableNodeSelection: true }),
     TableRow,
     TableHeader,
     TableCell,

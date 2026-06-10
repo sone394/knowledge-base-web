@@ -90,9 +90,13 @@
     @apply mb-4 w-full border-collapse text-sm;
   }
 
+  .note-editor-content .tableWrapper {
+    @apply mb-4 overflow-x-auto;
+  }
+
   .note-editor-content th,
   .note-editor-content td {
-    @apply border border-gray-200 px-3 py-2 dark:border-gray-700;
+    @apply min-h-[2rem] cursor-text border border-gray-200 px-3 py-2 dark:border-gray-700;
   }
 
   .note-editor-content th {
