@@ -62,6 +62,7 @@ export function useNoteContent(
   const { password, isUnlocked } = useEncryption()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRef = useRef<NoteUpdate | null>(null)
+  const pendingNoteIdRef = useRef<string | null>(null)
   const aiGenerationRef = useRef(0)
   const [isOfflinePending, setIsOfflinePending] = useState(false)
 
@@ -207,12 +208,18 @@ export function useNoteContent(
   )
 
   const saveMutation = useMutation({
-    mutationFn: async (updates: NoteUpdate) => {
-      if (!password || !noteId) throw new Error('未解锁知识库')
+    mutationFn: async ({
+      noteId: targetNoteId,
+      updates,
+    }: {
+      noteId: string
+      updates: NoteUpdate
+    }) => {
+      if (!password) throw new Error('未解锁知识库')
 
       const current =
-        queryClient.getQueryData<Note>(queryKeys.notes.detail(noteId)) ??
-        getNoteFromLocalCache(queryClient, noteId)
+        queryClient.getQueryData<Note>(queryKeys.notes.detail(targetNoteId)) ??
+        getNoteFromLocalCache(queryClient, targetNoteId)
 
       if (!current) throw new Error('笔记未加载')
 
@@ -226,7 +233,7 @@ export function useNoteContent(
         const { data: currentRaw, error: currentError } = await supabase
           .from('notes')
           .select('title, content')
-          .eq('id', noteId)
+          .eq('id', targetNoteId)
           .single()
 
         if (currentError) throw currentError
@@ -234,7 +241,7 @@ export function useNoteContent(
         const { error: historyError } = await supabase
           .from('note_history')
           .insert({
-            note_id: noteId,
+            note_id: targetNoteId,
             title: currentRaw.title,
             content: currentRaw.content,
           })
@@ -242,7 +249,12 @@ export function useNoteContent(
         if (historyError) throw historyError
       }
 
-      const result = await updateNoteWrite(noteId, updates, password, current)
+      const result = await updateNoteWrite(
+        targetNoteId,
+        updates,
+        password,
+        current,
+      )
       return { ...result, updates }
     },
     onSuccess: ({ data, offline, updates }) => {
@@ -292,32 +304,86 @@ export function useNoteContent(
     },
   })
 
-  const flushSave = useCallback(() => {
-    if (!noteId || !pendingRef.current) return
+  const applyOptimisticUpdate = useCallback(
+    (targetNoteId: string, updates: NoteUpdate) => {
+      const current =
+        queryClient.getQueryData<Note>(queryKeys.notes.detail(targetNoteId)) ??
+        getNoteFromLocalCache(queryClient, targetNoteId)
+      if (!current) return
 
-    const updates = pendingRef.current
-    pendingRef.current = null
-    saveMutation.mutate(updates)
-  }, [noteId, saveMutation])
+      const optimistic: Note = {
+        ...current,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      }
+      queryClient.setQueryData(queryKeys.notes.detail(targetNoteId), optimistic)
+      patchNotesTreeCache(queryClient, (notes) =>
+        notes.map((note) => (note.id === targetNoteId ? optimistic : note)),
+      )
+      persistSnapshot()
+    },
+    [persistSnapshot, queryClient],
+  )
+
+  const flushSaveForNote = useCallback(
+    (targetNoteId: string) => {
+      if (pendingNoteIdRef.current !== targetNoteId || !pendingRef.current) {
+        return
+      }
+
+      const updates = pendingRef.current
+      pendingRef.current = null
+      pendingNoteIdRef.current = null
+
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+
+      applyOptimisticUpdate(targetNoteId, updates)
+      saveMutation.mutate({ noteId: targetNoteId, updates })
+    },
+    [applyOptimisticUpdate, saveMutation],
+  )
+
+  const flushSave = useCallback(() => {
+    if (!noteId) return
+    flushSaveForNote(noteId)
+  }, [flushSaveForNote, noteId])
 
   const scheduleSave = useCallback(
     (updates: NoteUpdate) => {
       if (!noteId) return
 
+      pendingNoteIdRef.current = noteId
       pendingRef.current = { ...pendingRef.current, ...updates }
       setIsDirty(true)
 
       if (timerRef.current) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(flushSave, debounceMs)
+      timerRef.current = setTimeout(() => flushSaveForNote(noteId), debounceMs)
     },
-    [noteId, debounceMs, flushSave],
+    [noteId, debounceMs, flushSaveForNote],
   )
 
+  // 切换笔记或离开页面时，立即刷出防抖队列中的待保存内容
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
+      flushSaveForNote(noteId ?? '')
     }
-  }, [])
+  }, [noteId, flushSaveForNote])
+
+  useEffect(() => {
+    if (!isDirty) return
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      flushSave()
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [flushSave, isDirty])
 
   const setTitle = useCallback(
     (value: string) => {
