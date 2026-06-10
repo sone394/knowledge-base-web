@@ -65,11 +65,13 @@ export function DropdownItem({
   onClick,
   active = false,
   disabled = false,
+  danger = false,
   children,
 }: {
   onClick: () => void
   active?: boolean
   disabled?: boolean
+  danger?: boolean
   children: ReactNode
 }) {
   return (
@@ -78,12 +80,23 @@ export function DropdownItem({
       onClick={onClick}
       disabled={disabled}
       className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-        active
-          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-          : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60'
+        danger
+          ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30'
+          : active
+            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+            : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60'
       }`}
     >
       {children}
     </button>
+  )
+}
+
+export function DropdownDivider() {
+  return (
+    <div
+      role="separator"
+      className="my-1 border-t border-gray-100 dark:border-gray-700"
+    />
   )
 }

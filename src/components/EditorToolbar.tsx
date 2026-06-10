@@ -13,7 +13,10 @@ import {
 } from '../lib/formatPainter'
 import { isImageFile, uploadNoteAsset } from '../lib/uploads'
 import { useAuth } from '../context/AuthContext'
-import ToolbarDropdown, { DropdownItem } from './ToolbarDropdown'
+import ToolbarDropdown, {
+  DropdownDivider,
+  DropdownItem,
+} from './ToolbarDropdown'
 
 type EditorToolbarProps = {
   editor: Editor | null
@@ -491,8 +494,9 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
             <span className="text-xs font-medium">+列</span>
           </ToolbarButton>
           <ToolbarDropdown
-            title="更多表格操作"
-            label={<span className="text-xs font-semibold">行列</span>}
+            title="表格操作"
+            active
+            label={<span className="text-xs font-semibold">表格</span>}
           >
             <DropdownItem
               disabled={!editor.can().addRowBefore()}
@@ -518,6 +522,7 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
             >
               在右侧插入列
             </DropdownItem>
+            <DropdownDivider />
             <DropdownItem
               disabled={!editor.can().deleteRow()}
               onClick={() => run(() => editor.chain().focus().deleteRow().run())}
@@ -530,16 +535,13 @@ function EditorToolbarContent({ editor, onFocusMode }: EditorToolbarContentProps
             >
               删除当前列
             </DropdownItem>
+            <DropdownItem
+              danger
+              onClick={() => run(() => deleteTableInEditor(editor))}
+            >
+              删除整张表格
+            </DropdownItem>
           </ToolbarDropdown>
-          <ToolbarButton
-            onClick={() => run(() => deleteTableInEditor(editor))}
-            title="删除整张表格"
-          >
-            <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
-              <DeleteIcon />
-              删表
-            </span>
-          </ToolbarButton>
         </>
       )}
 
