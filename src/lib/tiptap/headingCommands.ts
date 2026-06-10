@@ -59,7 +59,7 @@ function blockHasHardBreak(block: PMNode): boolean {
 /** 仅对光标所在行切换标题，避免同一段内多行一起被改成同一级标题 */
 export function toggleHeadingOnCurrentLine(
   editor: Editor,
-  level: 1 | 2 | 3,
+  level: 1 | 2 | 3 | 4 | 5 | 6,
 ): void {
   const { state } = editor
   const { $from } = state.selection

@@ -1,4 +1,5 @@
 import TurndownService from 'turndown'
+import { gfm } from 'turndown-plugin-gfm'
 import { marked } from 'marked'
 
 marked.setOptions({ gfm: true, breaks: true })
@@ -9,9 +10,30 @@ const turndown = new TurndownService({
   bulletListMarker: '-',
 })
 
-turndown.addRule('strikethrough', {
-  filter: ['del', 's'],
-  replacement: (content) => `~~${content}~~`,
+turndown.use(gfm)
+
+turndown.addRule('underline', {
+  filter: ['u'],
+  replacement: (content) => `<u>${content}</u>`,
+})
+
+turndown.addRule('highlight', {
+  filter: (node) =>
+    node.nodeName === 'MARK' && !node.getAttribute('data-comment'),
+  replacement: (content) => `==${content}==`,
+})
+
+turndown.addRule('coloredText', {
+  filter: (node) => {
+    if (node.nodeName !== 'SPAN') return false
+    const style = node.getAttribute('style') ?? ''
+    return style.includes('color')
+  },
+  replacement: (content, node) => {
+    const element = node as HTMLElement
+    const color = element.style.color
+    return color ? `<span style="color:${color}">${content}</span>` : content
+  },
 })
 
 turndown.addRule('noteLink', {
@@ -33,6 +55,51 @@ turndown.addRule('noteLink', {
   },
 })
 
+turndown.addRule('callout', {
+  filter: (node) =>
+    node.nodeName === 'DIV' && node.getAttribute('data-callout') !== null,
+  replacement: (content, node) => {
+    const type = node.getAttribute('data-callout-type') || 'info'
+    const lines = content.trim().split('\n').map((line) => `> ${line}`)
+    return `> [!${type}]\n${lines.join('\n')}\n`
+  },
+})
+
+turndown.addRule('comment', {
+  filter: (node) =>
+    node.nodeName === 'MARK' && node.getAttribute('data-comment') !== null,
+  replacement: (content, node) => {
+    const text = node.getAttribute('data-comment') ?? ''
+    return `%%${content}|${text}%%`
+  },
+})
+
+turndown.addRule('mathInline', {
+  filter: (node) => node.nodeName === 'SPAN' && node.getAttribute('data-math-inline') !== null,
+  replacement: (_content, node) => {
+    const latex = node.getAttribute('data-latex') ?? ''
+    return `$${latex}$`
+  },
+})
+
+turndown.addRule('mathBlock', {
+  filter: (node) => node.nodeName === 'DIV' && node.getAttribute('data-math-block') !== null,
+  replacement: (_content, node) => {
+    const latex = node.getAttribute('data-latex') ?? ''
+    return `$$\n${latex}\n$$\n`
+  },
+})
+
+turndown.addRule('image', {
+  filter: 'img',
+  replacement: (_content, node) => {
+    const element = node as HTMLImageElement
+    const alt = element.getAttribute('alt') ?? ''
+    const src = element.getAttribute('src') ?? ''
+    return `![${alt}](${src})`
+  },
+})
+
 /** 将 [[标题|id]] 维基链接转为 HTML */
 export function preprocessWikiLinks(markdown: string): string {
   return markdown.replace(
@@ -41,6 +108,54 @@ export function preprocessWikiLinks(markdown: string): string {
       const escapedLabel = label.trim()
       return `<a href="/note/${id.trim()}" data-note-id="${id.trim()}" data-type="note-link" class="note-internal-link">${escapedLabel}</a>`
     },
+  )
+}
+
+function preprocessHighlights(markdown: string): string {
+  return markdown.replace(/==([^=]+)==/g, '<mark>$1</mark>')
+}
+
+function preprocessComments(markdown: string): string {
+  return markdown.replace(
+    /%%([^|%]+)\|([^%]+)%%/g,
+    '<mark data-comment="$2" class="editor-comment" title="$2">$1</mark>',
+  )
+}
+
+function preprocessMath(markdown: string): string {
+  let result = markdown.replace(
+    /\$\$\n([\s\S]+?)\n\$\$/g,
+    '<div data-math-block="" class="math-block" data-latex="$1">$1</div>',
+  )
+  result = result.replace(
+    /\$([^$\n]+)\$/g,
+    '<span data-math-inline="" class="math-inline" data-latex="$1">$1</span>',
+  )
+  return result
+}
+
+function preprocessCallouts(markdown: string): string {
+  return markdown.replace(
+    />\s*\[!(\w+)\]\s*\n((?:>.*\n?)*)/g,
+    (_match, type: string, body: string) => {
+      const inner = body
+        .split('\n')
+        .map((line) => line.replace(/^>\s?/, ''))
+        .filter(Boolean)
+        .map((line) => `<p>${line}</p>`)
+        .join('')
+      return `<div data-callout="" data-callout-type="${type}" class="callout callout-${type}">${inner}</div>`
+    },
+  )
+}
+
+function preprocessCustomMarkdown(markdown: string): string {
+  return preprocessCallouts(
+    preprocessMath(
+      preprocessComments(
+        preprocessHighlights(preprocessWikiLinks(markdown)),
+      ),
+    ),
   )
 }
 
@@ -70,7 +185,9 @@ export function markdownToHtml(markdown: string): string {
   const trimmed = markdown.trim()
   if (!trimmed) return ''
   if (trimmed.startsWith('<')) return markdown
-  return marked.parse(preprocessWikiLinks(trimmed), { async: false }) as string
+  return marked.parse(preprocessCustomMarkdown(trimmed), {
+    async: false,
+  }) as string
 }
 
 /** Markdown → HTML，供编辑器加载（软换行会拆成独立段落） */
@@ -79,7 +196,7 @@ export function markdownToEditorHtml(markdown: string): string {
   if (!trimmed) return ''
   if (trimmed.startsWith('<')) return markdown
   return marked.parse(
-    preprocessWikiLinks(paragraphizeSoftBreaks(trimmed)),
+    preprocessCustomMarkdown(paragraphizeSoftBreaks(trimmed)),
     { async: false },
   ) as string
 }
@@ -87,7 +204,7 @@ export function markdownToEditorHtml(markdown: string): string {
 /** 将标题内的软换行拆成独立块，避免保存后再加载时多行重新粘成同一标题 */
 function splitHeadingBreaksInHtml(html: string): string {
   return html.replace(
-    /<h([1-3])>([\s\S]*?)<\/h\1>/gi,
+    /<h([1-6])>([\s\S]*?)<\/h\1>/gi,
     (_match, level: string, inner: string) => {
       if (!/<br\s*\/?>/i.test(inner)) return _match
       const parts = inner

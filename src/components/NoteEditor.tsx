@@ -1,24 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
-import Placeholder from '@tiptap/extension-placeholder'
-import Typography from '@tiptap/extension-typography'
 import { useNoteContent } from '../hooks/useNoteContent'
 import { useNotes } from '../hooks/useNotes'
 import { useIsMobile } from '../hooks/useMediaQuery'
+import { useEditorSession } from '../context/EditorSessionContext'
 import {
   formatSavedTime,
   htmlToMarkdown,
   markdownToEditorHtml,
 } from '../lib/markdown'
 import { countNoteCharacters } from '../lib/noteText'
+import { applyFormatPainter, isFormatPainterActive } from '../lib/formatPainter'
 import { NoteLinkExtension } from '../lib/tiptap/noteLinkExtension'
+import { createEditorExtensions } from '../lib/tiptap/createEditorExtensions'
 import AiSummaryPanel from './AiSummaryPanel'
 import EditorToolbar from './EditorToolbar'
 import NoteHistoryDrawer from './NoteHistoryDrawer'
 import NoteTagPanel from './NoteTagPanel'
 import NoteRightPanel from './NoteRightPanel'
+import NoteReadingView from './NoteReadingView'
 import PullToRefresh from './PullToRefresh'
 import { useToggleNoteReview } from '../hooks/useReview'
 import { formatReviewDueDate } from '../lib/spacedRepetition'
@@ -54,9 +54,11 @@ export default function NoteEditor({
     refetch,
   } = useNoteContent(noteId)
 
+  const { updateTabTitle } = useEditorSession()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [isFocusMode, setIsFocusMode] = useState(false)
+  const [isReadingMode, setIsReadingMode] = useState(false)
   const [focusVisible, setFocusVisible] = useState(false)
 
   const toggleFocusMode = useCallback(() => {
@@ -88,29 +90,24 @@ export default function NoteEditor({
   )
 
   const loadedNoteIdRef = useRef<string | null>(null)
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null)
 
   const editor = useEditor(
     {
-      extensions: [
-        StarterKit.configure({
-          heading: { levels: [1, 2, 3] },
-        }),
-        Link.configure({
-          openOnClick: false,
-          HTMLAttributes: { class: 'text-blue-600 underline' },
-        }),
-        noteLinkExtension,
-        Placeholder.configure({
-          placeholder:
-            '开始写作…（输入 [[ 链接笔记，# 空格变标题）',
-        }),
-        Typography,
-      ],
+      extensions: createEditorExtensions({ noteLinkExtension }),
       content: '',
       editorProps: {
         attributes: {
           class:
             'note-editor-content min-h-[calc(100vh-16rem)] max-w-none focus:outline-none',
+        },
+        handleDOMEvents: {
+          mouseup: () => {
+            if (editorRef.current && isFormatPainterActive()) {
+              applyFormatPainter(editorRef.current)
+            }
+            return false
+          },
         },
       },
       onUpdate: ({ editor: ed }) => {
@@ -119,6 +116,14 @@ export default function NoteEditor({
     },
     [noteId, noteLinkExtension],
   )
+
+  useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
+
+  useEffect(() => {
+    updateTabTitle(noteId, title)
+  }, [noteId, title, updateTabTitle])
 
   useEffect(() => {
     onFocusModeChange?.(isFocusMode)
@@ -218,6 +223,27 @@ export default function NoteEditor({
     )
   }
 
+  const readingModeButton = (
+    <button
+      type="button"
+      onClick={() => setIsReadingMode((prev) => !prev)}
+      className={`touch-target rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+        isReadingMode
+          ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+      }`}
+      title={isReadingMode ? '退出阅读模式' : '阅读模式'}
+      aria-label={isReadingMode ? '退出阅读模式' : '进入阅读模式'}
+    >
+      <span className="flex items-center gap-1.5">
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        {isReadingMode ? '编辑' : '阅读'}
+      </span>
+    </button>
+  )
+
   const focusToggleButton = (
     <button
       type="button"
@@ -306,19 +332,28 @@ export default function NoteEditor({
           >
             <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
               {reviewToggle}
+              {readingModeButton}
               {moreMenu}
               {focusToggleButton}
             </div>
             <div className="mx-auto w-full max-w-3xl px-4 py-6">
-              <input
-                type="text"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="无标题"
-                className="mb-4 w-full border-none bg-transparent text-2xl font-bold text-gray-900 outline-none placeholder:text-gray-300 dark:text-gray-100 dark:placeholder:text-gray-600"
-              />
-              <EditorToolbar editor={editor} />
-              <EditorContent editor={editor} />
+              {!isReadingMode && (
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="无标题"
+                  className="mb-4 w-full border-none bg-transparent text-2xl font-bold text-gray-900 outline-none placeholder:text-gray-300 dark:text-gray-100 dark:placeholder:text-gray-600"
+                />
+              )}
+              {!isReadingMode && (
+                <EditorToolbar editor={editor} onFocusMode={toggleFocusMode} />
+              )}
+              {isReadingMode ? (
+                <NoteReadingView title={title} content={content} />
+              ) : (
+                <EditorContent editor={editor} />
+              )}
             </div>
           </PullToRefresh>
         ) : (
@@ -333,6 +368,7 @@ export default function NoteEditor({
               }`}
             >
               {!isFocusMode && reviewToggle}
+              {!isFocusMode && readingModeButton}
               {!isFocusMode && moreMenu}
               {focusToggleButton}
             </div>
@@ -342,16 +378,24 @@ export default function NoteEditor({
                 isFocusMode ? 'py-10' : 'py-8'
               }`}
             >
-              <input
-                type="text"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="无标题"
-                className="mb-4 w-full border-none bg-transparent text-3xl font-bold text-gray-900 outline-none placeholder:text-gray-300 dark:text-gray-100 dark:placeholder:text-gray-600"
-              />
+              {!isReadingMode && (
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="无标题"
+                  className="mb-4 w-full border-none bg-transparent text-3xl font-bold text-gray-900 outline-none placeholder:text-gray-300 dark:text-gray-100 dark:placeholder:text-gray-600"
+                />
+              )}
 
-              {!isFocusMode && <EditorToolbar editor={editor} />}
-              <EditorContent editor={editor} />
+              {!isFocusMode && !isReadingMode && (
+                <EditorToolbar editor={editor} onFocusMode={toggleFocusMode} />
+              )}
+              {isReadingMode ? (
+                <NoteReadingView title={title} content={content} />
+              ) : (
+                <EditorContent editor={editor} />
+              )}
             </div>
           </div>
         )}

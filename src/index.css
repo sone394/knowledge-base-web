@@ -34,6 +34,96 @@
     @apply mb-2 mt-4 text-xl font-semibold text-gray-900 dark:text-gray-100;
   }
 
+  .note-editor-content h4 {
+    @apply mb-2 mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100;
+  }
+
+  .note-editor-content h5 {
+    @apply mb-2 mt-3 text-base font-semibold text-gray-900 dark:text-gray-100;
+  }
+
+  .note-editor-content h6 {
+    @apply mb-2 mt-2 text-sm font-semibold text-gray-700 dark:text-gray-300;
+  }
+
+  .note-editor-content u {
+    @apply underline;
+  }
+
+  .note-editor-content mark {
+    @apply rounded px-0.5;
+  }
+
+  .note-editor-content .editor-comment {
+    @apply border-b-2 border-dashed border-amber-400 bg-amber-50 dark:bg-amber-950/30;
+  }
+
+  .note-editor-content img.note-editor-image {
+    @apply my-4 max-w-full rounded-lg;
+  }
+
+  .note-editor-content a.note-attachment {
+    @apply inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm text-gray-700 no-underline hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700;
+  }
+
+  .note-editor-content ul[data-type='taskList'] {
+    @apply list-none pl-0;
+  }
+
+  .note-editor-content ul[data-type='taskList'] li {
+    @apply flex items-start gap-2;
+  }
+
+  .note-editor-content ul[data-type='taskList'] li label {
+    @apply mt-1;
+  }
+
+  .note-editor-content table {
+    @apply mb-4 w-full border-collapse text-sm;
+  }
+
+  .note-editor-content th,
+  .note-editor-content td {
+    @apply border border-gray-200 px-3 py-2 dark:border-gray-700;
+  }
+
+  .note-editor-content th {
+    @apply bg-gray-50 font-semibold dark:bg-gray-800;
+  }
+
+  .note-editor-content .callout {
+    @apply mb-4 rounded-lg border px-4 py-3;
+  }
+
+  .note-editor-content .callout-info {
+    @apply border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40;
+  }
+
+  .note-editor-content .callout-tip {
+    @apply border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40;
+  }
+
+  .note-editor-content .callout-warning {
+    @apply border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40;
+  }
+
+  .note-editor-content .callout-danger {
+    @apply border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40;
+  }
+
+  .note-editor-content .math-inline,
+  .note-editor-content .math-block {
+    @apply rounded bg-gray-100 px-2 py-1 font-mono text-sm dark:bg-gray-800;
+  }
+
+  .note-editor-content .math-block {
+    @apply my-4 block text-center;
+  }
+
+  .note-reading-view .note-editor-content h1:first-child {
+    @apply hidden;
+  }
+
   .note-editor-content p {
     @apply mb-3;
   }
