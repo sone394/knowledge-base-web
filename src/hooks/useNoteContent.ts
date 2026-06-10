@@ -10,7 +10,7 @@ import { appendTagNamesToNote } from '../lib/noteTagHelpers'
 import { decryptNote } from '../lib/noteCrypto'
 import { useEncryption } from '../context/EncryptionContext'
 import { useAuth } from '../context/AuthContext'
-import { isOnline } from '../lib/network'
+import { isOnline, withTimeout } from '../lib/network'
 import {
   getNoteFromLocalCache,
   patchNotesTreeCache,
@@ -18,19 +18,24 @@ import {
 } from '../lib/noteWrites'
 import { syncNoteLinks } from '../lib/noteLinks'
 import { meetsMinLengthForAi } from '../lib/noteText'
-import { saveNotesSnapshot } from '../lib/notesSnapshot'
+import { loadNotesSnapshot, saveNotesSnapshot } from '../lib/notesSnapshot'
 import type { Note, NoteUpdate } from '../../types/database'
 import { queryKeys } from './queryKeys'
 
 const DEFAULT_DEBOUNCE_MS = 800
+const NOTE_FETCH_TIMEOUT_MS = 20_000
 
 async function fetchNoteFromDb(id: string): Promise<Note> {
-  const { data, error } = await supabase
-    .from('notes')
-    .select('*')
-    .eq('id', id)
-    .is('deleted_at', null)
-    .single()
+  const { data, error } = await withTimeout(
+    supabase
+      .from('notes')
+      .select('*')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single(),
+    NOTE_FETCH_TIMEOUT_MS,
+    '加载笔记超时，请检查网络后刷新',
+  )
 
   if (error) throw error
   return data
@@ -60,21 +65,56 @@ export function useNoteContent(
   const aiGenerationRef = useRef(0)
   const [isOfflinePending, setIsOfflinePending] = useState(false)
 
+  // 笔记树或 IndexedDB 快照中有数据时，先展示本地内容，避免长时间骨架屏
+  useEffect(() => {
+    if (!noteId || !isUnlocked || !password) return
+
+    const existing = queryClient.getQueryData<Note>(
+      queryKeys.notes.detail(noteId),
+    )
+    if (existing !== undefined) return
+
+    const fromTree = getNoteFromLocalCache(queryClient, noteId)
+    if (fromTree) {
+      queryClient.setQueryData(queryKeys.notes.detail(noteId), fromTree)
+      return
+    }
+
+    if (!user) return
+    void loadNotesSnapshot(user.id).then((snapshot) => {
+      const note = snapshot?.find((item) => item.id === noteId)
+      if (!note) return
+      queryClient.setQueryData<Note>(queryKeys.notes.detail(noteId), (current) =>
+        current === undefined ? note : current,
+      )
+    })
+  }, [noteId, isUnlocked, password, queryClient, user])
+
   const query = useQuery({
     queryKey: queryKeys.notes.detail(noteId ?? ''),
     queryFn: async () => {
       if (!password) throw new Error('未解锁知识库')
 
+      const cached = getNoteFromLocalCache(queryClient, noteId!)
+
       if (!isOnline()) {
-        const cached = getNoteFromLocalCache(queryClient, noteId!)
         if (cached) return cached
         throw new Error('离线无法加载该笔记')
       }
 
-      const raw = await fetchNoteFromDb(noteId!)
-      return decryptNote(raw, password)
+      try {
+        const raw = await fetchNoteFromDb(noteId!)
+        return decryptNote(raw, password)
+      } catch (error) {
+        if (cached) return cached
+        throw error
+      }
     },
     enabled: !!noteId && isUnlocked && !!password,
+    placeholderData: () => {
+      if (!noteId) return undefined
+      return getNoteFromLocalCache(queryClient, noteId) ?? undefined
+    },
     networkMode: 'offlineFirst',
   })
 
@@ -317,7 +357,8 @@ export function useNoteContent(
     setTitle,
     setContent,
     isDirty,
-    isLoading: query.isLoading,
+    isLoading: query.isLoading && query.data === undefined,
+    isFetching: query.isFetching,
     isError: query.isError,
     error: query.error,
     isSaving: saveMutation.isPending,
