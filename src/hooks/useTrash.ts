@@ -40,15 +40,27 @@ export function useTrash() {
   const restoreNote = useMutation({
     mutationFn: async (id: string) => {
       const trashNotes = await fetchTrashNotesFromDb()
+      const trashIds = new Set(trashNotes.map((note) => note.id))
       const descendantIds = collectDescendantIds(id, trashNotes)
-      const idsToRestore = [id, ...descendantIds]
+      const idsToRestore = new Set<string>([id, ...descendantIds])
 
-      const { error } = await supabase
+      let parentId = trashNotes.find((note) => note.id === id)?.parent_id ?? null
+      while (parentId && trashIds.has(parentId)) {
+        idsToRestore.add(parentId)
+        parentId =
+          trashNotes.find((note) => note.id === parentId)?.parent_id ?? null
+      }
+
+      const { data, error } = await supabase
         .from('notes')
         .update({ deleted_at: null })
-        .in('id', idsToRestore)
+        .in('id', [...idsToRestore])
+        .select('id')
 
       if (error) throw error
+      if (!data?.length) {
+        throw new Error('恢复失败，请刷新页面后重试')
+      }
       return id
     },
     onSuccess: invalidateTrash,

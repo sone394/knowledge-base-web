@@ -278,9 +278,9 @@ export function useNotes() {
       const notes = queryClient.getQueryData<Note[]>(queryKeys.notes.tree())
       if (notes) persistSnapshot(notes)
 
+      queryClient.invalidateQueries({ queryKey: queryKeys.trash.all })
       if (!offline) {
         invalidateNotes()
-        queryClient.invalidateQueries({ queryKey: queryKeys.trash.all })
       }
     },
   })

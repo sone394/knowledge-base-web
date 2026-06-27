@@ -126,6 +126,18 @@ export function useNoteContent(
   const [summaryError, setSummaryError] = useState<Error | null>(null)
 
   useEffect(() => {
+    if (!noteId || !isUnlocked || !password) return
+
+    const handleFocus = () => {
+      if (!isOnline() || isDirty) return
+      void query.refetch()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [noteId, isUnlocked, password, isDirty, query.refetch])
+
+  useEffect(() => {
     if (query.data && noteId === query.data.id) {
       setTitleState(query.data.title)
       setContentState(query.data.content)
@@ -351,6 +363,15 @@ export function useNoteContent(
     flushSaveForNote(noteId)
   }, [flushSaveForNote, noteId])
 
+  const cancelPendingSave = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    pendingRef.current = null
+    pendingNoteIdRef.current = null
+  }, [])
+
   const scheduleSave = useCallback(
     (updates: NoteUpdate) => {
       if (!noteId) return
@@ -431,6 +452,7 @@ export function useNoteContent(
     saveError: saveMutation.error,
     isOfflinePending,
     saveNow,
+    cancelPendingSave,
     refetch: query.refetch,
     isGeneratingSummary,
     summaryError,

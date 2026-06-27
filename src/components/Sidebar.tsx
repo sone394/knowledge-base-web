@@ -102,6 +102,7 @@ export default function Sidebar({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<NoteTreeNode | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<{
     id: string
@@ -276,6 +277,7 @@ export default function Sidebar({
 
   const handleRequestDelete = (note: NoteTreeNode) => {
     closeContextMenu()
+    setDeleteError(null)
     setDeleteTarget(note)
   }
 
@@ -294,12 +296,22 @@ export default function Sidebar({
     if (!deleteTarget) return
 
     const deletedId = deleteTarget.id
+    setDeleteError(null)
     deleteNote.mutate(deletedId, {
-      onSuccess: () => {
+      onSuccess: ({ offline }) => {
         if (selectedNoteId === deletedId) {
           onSelectNote(null)
         }
         setDeleteTarget(null)
+        setDeleteError(null)
+        if (offline) {
+          window.alert('当前网络不稳定，删除已暂存本地，联网后将同步到回收站。')
+        }
+      },
+      onError: (err) => {
+        setDeleteError(
+          err instanceof Error ? err.message : '删除失败，请稍后重试',
+        )
       },
     })
   }
@@ -748,10 +760,16 @@ export default function Sidebar({
               {deleteTarget.title.trim() || '未命名笔记'}
               」吗？其子笔记也会一并移入回收站。
             </p>
+            {deleteError && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">{deleteError}</p>
+            )}
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setDeleteTarget(null)}
+                onClick={() => {
+                  setDeleteTarget(null)
+                  setDeleteError(null)
+                }}
                 disabled={deleteNote.isPending}
                 className="touch-target rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
               >

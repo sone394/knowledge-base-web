@@ -167,12 +167,16 @@ export async function deleteNoteWrite(
   }
 
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('notes')
       .update(payload)
       .in('id', idsToDelete)
+      .select('id')
 
     if (error) throw error
+    if (!data?.length) {
+      throw new Error('删除失败：笔记未找到或登录已过期，请刷新页面后重试')
+    }
     return { data: id, offline: false }
   } catch (error) {
     if (shouldQueueOffline(error)) {

@@ -44,11 +44,21 @@ export type FlattenVisibleTreeOptions = {
   searchVisibleIds?: Set<string> | null
 }
 
+/** 父节点不在当前列表中时视为孤儿（例如父文件夹已在回收站） */
+export function resolveTreeParentId(
+  note: Pick<Note, 'id' | 'parent_id'>,
+  activeIds: Set<string>,
+): string | null {
+  if (note.parent_id === null) return null
+  return activeIds.has(note.parent_id) ? note.parent_id : null
+}
+
 export function buildNoteTree(notes: Note[]): NoteTreeNode[] {
+  const activeIds = new Set(notes.map((note) => note.id))
   const byParent = new Map<string | null, Note[]>()
 
   for (const note of notes) {
-    const key = note.parent_id
+    const key = resolveTreeParentId(note, activeIds)
     const group = byParent.get(key)
     if (group) {
       group.push(note)

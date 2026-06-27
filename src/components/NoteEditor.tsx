@@ -52,11 +52,13 @@ export default function NoteEditor({
     regenerateSummary,
     canRegenerateSummary,
     refetch,
+    cancelPendingSave,
   } = useNoteContent(noteId)
 
   const { updateTabTitle } = useEditorSession()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isFocusMode, setIsFocusMode] = useState(false)
   const [isReadingMode, setIsReadingMode] = useState(false)
   const [focusVisible, setFocusVisible] = useState(false)
@@ -351,9 +353,9 @@ export default function NoteEditor({
               )}
               {isReadingMode ? (
                 <NoteReadingView title={title} content={content} />
-              ) : (
+              ) : editor ? (
                 <EditorContent editor={editor} />
-              )}
+              ) : null}
             </div>
           </PullToRefresh>
         ) : (
@@ -393,9 +395,9 @@ export default function NoteEditor({
               )}
               {isReadingMode ? (
                 <NoteReadingView title={title} content={content} />
-              ) : (
+              ) : editor ? (
                 <EditorContent editor={editor} />
-              )}
+              ) : null}
             </div>
           </div>
         )}
@@ -477,10 +479,16 @@ export default function NoteEditor({
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               确定要删除「{title.trim() || '未命名笔记'}」吗？其子笔记也会一并移入回收站。
             </p>
+            {deleteError && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">{deleteError}</p>
+            )}
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setDeleteConfirmOpen(false)}
+                onClick={() => {
+                  setDeleteConfirmOpen(false)
+                  setDeleteError(null)
+                }}
                 disabled={deleteNote.isPending}
                 className="touch-target rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
               >
@@ -489,10 +497,21 @@ export default function NoteEditor({
               <button
                 type="button"
                 onClick={() => {
+                  setDeleteError(null)
+                  cancelPendingSave()
                   deleteNote.mutate(noteId, {
-                    onSuccess: () => {
+                    onSuccess: ({ offline }) => {
                       setDeleteConfirmOpen(false)
+                      setDeleteError(null)
                       onSelectNote(null)
+                      if (offline) {
+                        window.alert('当前网络不稳定，删除已暂存本地，联网后将同步到回收站。')
+                      }
+                    },
+                    onError: (err) => {
+                      setDeleteError(
+                        err instanceof Error ? err.message : '删除失败，请稍后重试',
+                      )
                     },
                   })
                 }}
