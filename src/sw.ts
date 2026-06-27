@@ -8,11 +8,9 @@ interface SyncEvent extends ExtendableEvent {
 import { clientsClaim } from 'workbox-core'
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
-import { NetworkFirst, NetworkOnly } from 'workbox-strategies'
-import { BackgroundSyncPlugin } from 'workbox-background-sync'
+import { NetworkFirst } from 'workbox-strategies'
 import {
   OUTBOX_SYNC_TAG,
-  WORKBOX_WRITE_QUEUE,
 } from './lib/syncConstants'
 
 declare let self: ServiceWorkerGlobalScope
@@ -30,18 +28,8 @@ registerRoute(
   }),
 )
 
-const supabaseWriteSync = new BackgroundSyncPlugin(WORKBOX_WRITE_QUEUE, {
-  maxRetentionTime: 24 * 60,
-})
-
-registerRoute(
-  ({ url, request }) =>
-    url.hostname.includes('supabase.co') &&
-    ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method),
-  new NetworkOnly({
-    plugins: [supabaseWriteSync],
-  }),
-)
+// Supabase 写请求不经过 Service Worker，避免 Background Sync 干扰 PATCH 响应。
+// 离线写入由应用内 outbox（IndexedDB）负责。
 
 self.addEventListener('sync', (event) => {
   const syncEvent = event as SyncEvent

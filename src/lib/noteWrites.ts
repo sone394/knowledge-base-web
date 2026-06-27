@@ -172,53 +172,71 @@ export async function deleteNoteWrite(
   try {
     await ensureAuthSession()
 
-    const applySoftDelete = async (targetIds: string[]) => {
-      if (targetIds.length === 0) return [] as { id: string }[]
-
-      const { data, error } = await supabase
-        .from('notes')
-        .update(payload)
-        .in('id', targetIds)
-        .select('id')
-
-      if (error) throw error
-      return data ?? []
-    }
-
-    let updated = await applySoftDelete(idsToDelete)
-
-    if (updated.length === 0) {
-      const { data: remoteNote, error: fetchError } = await supabase
+    const softDeleteOne = async (
+      noteId: string,
+    ): Promise<'deleted' | 'already' | 'missing'> => {
+      const { data: before, error: beforeError } = await supabase
         .from('notes')
         .select('id, deleted_at, user_id')
-        .eq('id', id)
+        .eq('id', noteId)
         .maybeSingle()
 
-      if (fetchError) throw fetchError
-
-      if (!remoteNote) {
-        return { data: id, offline: false, purgedLocalOnly: true }
-      }
-
-      if (remoteNote.deleted_at) {
-        return { data: id, offline: false }
-      }
+      if (beforeError) throw beforeError
+      if (!before) return 'missing'
+      if (before.deleted_at) return 'already'
 
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (user && remoteNote.user_id !== user.id) {
+      if (user && before.user_id !== user.id) {
         throw new Error('删除失败：该笔记不属于当前登录账号')
       }
 
-      updated = await applySoftDelete([id])
-      if (updated.length === 0) {
-        throw new Error('删除失败：请刷新页面或重新登录后再试')
+      const { error: updateError } = await supabase
+        .from('notes')
+        .update({ deleted_at: deletedAt })
+        .eq('id', noteId)
+
+      if (updateError) {
+        throw new Error(
+          `删除失败：${updateError.message || '服务器拒绝更新，请重新登录后再试'}`,
+        )
       }
 
-      if (descendantIds.length > 0) {
-        await applySoftDelete(descendantIds)
+      const { data: after, error: afterError } = await supabase
+        .from('notes')
+        .select('deleted_at')
+        .eq('id', noteId)
+        .maybeSingle()
+
+      if (afterError) throw afterError
+      if (after?.deleted_at) return 'deleted'
+
+      const { data: inTrash, error: trashError } = await supabase
+        .from('notes')
+        .select('id')
+        .eq('id', noteId)
+        .not('deleted_at', 'is', null)
+        .maybeSingle()
+
+      if (trashError) throw trashError
+      if (inTrash) return 'deleted'
+
+      throw new Error('删除失败：服务器未更新笔记，请退出登录后重新登录再试')
+    }
+
+    const primary = await softDeleteOne(id)
+
+    if (primary === 'missing' && idsToDelete.length === 1) {
+      return { data: id, offline: false, purgedLocalOnly: true }
+    }
+
+    for (const childId of descendantIds) {
+      try {
+        await softDeleteOne(childId)
+      } catch {
+        // 子笔记删除失败不阻断主笔记
       }
     }
 
