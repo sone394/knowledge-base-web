@@ -17,6 +17,8 @@ export type WriteResult<T> = {
   offline: boolean
   /** 笔记仅存在于本地缓存，已从界面移除但未写入服务器 */
   purgedLocalOnly?: boolean
+  /** 笔记在云端属于其他账号，已从当前账号的本地列表移除 */
+  foreignAccount?: boolean
 }
 
 function buildOptimisticNote(
@@ -174,7 +176,7 @@ export async function deleteNoteWrite(
 
     const softDeleteOne = async (
       noteId: string,
-    ): Promise<'deleted' | 'already' | 'missing'> => {
+    ): Promise<'deleted' | 'already' | 'missing' | 'foreign'> => {
       const { data: before, error: beforeError } = await supabase
         .from('notes')
         .select('id, deleted_at, user_id')
@@ -190,7 +192,7 @@ export async function deleteNoteWrite(
       } = await supabase.auth.getUser()
 
       if (user && before.user_id !== user.id) {
-        throw new Error('删除失败：该笔记不属于当前登录账号')
+        return 'foreign'
       }
 
       const { error: updateError } = await supabase
@@ -228,7 +230,11 @@ export async function deleteNoteWrite(
 
     const primary = await softDeleteOne(id)
 
-    if (primary === 'missing' && idsToDelete.length === 1) {
+    if (primary === 'foreign') {
+      return { data: id, offline: false, purgedLocalOnly: true, foreignAccount: true }
+    }
+
+    if (primary === 'missing') {
       return { data: id, offline: false, purgedLocalOnly: true }
     }
 

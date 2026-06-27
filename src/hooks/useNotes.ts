@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   useMutation,
   useQuery,
@@ -31,6 +31,10 @@ import {
 import type { NoteTreeNode } from '../../types/database'
 
 const NOTES_FETCH_TIMEOUT_MS = 20_000
+
+function filterNotesForUser(notes: Note[], userId: string): Note[] {
+  return notes.filter((note) => note.user_id === userId)
+}
 
 async function fetchNotesFromDb(): Promise<Note[]> {
   const { data, error } = await withTimeout(
@@ -138,10 +142,23 @@ export function useNotes() {
   const { user } = useAuth()
   const { password, isUnlocked } = useEncryption()
   const queryClient = useQueryClient()
+  const lastUserIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const currentUserId = user?.id ?? null
+    if (
+      lastUserIdRef.current &&
+      currentUserId &&
+      lastUserIdRef.current !== currentUserId
+    ) {
+      queryClient.removeQueries({ queryKey: queryKeys.notes.all })
+    }
+    lastUserIdRef.current = currentUserId
+  }, [user?.id, queryClient])
 
   const persistSnapshot = (notes: Note[]) => {
     if (user) {
-      void saveNotesSnapshot(user.id, notes)
+      void saveNotesSnapshot(user.id, filterNotesForUser(notes, user.id))
     }
   }
 
@@ -154,8 +171,9 @@ export function useNotes() {
 
     void loadNotesSnapshot(user.id).then((snapshot) => {
       if (snapshot === null) return
+      const owned = filterNotesForUser(snapshot, user.id)
       queryClient.setQueryData<Note[]>(queryKeys.notes.tree(), (current) =>
-        current === undefined ? snapshot : current,
+        current === undefined ? owned : current,
       )
     })
   }, [user, isUnlocked, password, queryClient])
@@ -167,13 +185,16 @@ export function useNotes() {
 
       if (!isOnline()) {
         const cached = await loadNotesSnapshot(user.id)
-        if (cached) return cached
+        if (cached) return filterNotesForUser(cached, user.id)
         throw new Error('离线且无本地缓存，请先联网加载笔记')
       }
 
       try {
         const raw = await fetchNotesFromDb()
-        let decrypted = decryptNotes(raw, password)
+        let decrypted = filterNotesForUser(
+          decryptNotes(raw, password),
+          user.id,
+        )
 
         const orphans = findOrphanNotes(decrypted)
         if (orphans.length > 0) {
@@ -198,10 +219,12 @@ export function useNotes() {
         const memoryCache = queryClient.getQueryData<Note[]>(
           queryKeys.notes.tree(),
         )
-        if (memoryCache?.length) return memoryCache
+        if (memoryCache?.length) {
+          return filterNotesForUser(memoryCache, user.id)
+        }
 
         const cached = await loadNotesSnapshot(user.id)
-        if (cached) return cached
+        if (cached) return filterNotesForUser(cached, user.id)
         throw error
       }
     },

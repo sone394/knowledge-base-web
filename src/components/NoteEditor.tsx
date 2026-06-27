@@ -500,12 +500,16 @@ export default function NoteEditor({
                   setDeleteError(null)
                   cancelPendingSave()
                   deleteNote.mutate(noteId, {
-                    onSuccess: ({ offline, purgedLocalOnly }) => {
+                    onSuccess: ({ offline, purgedLocalOnly, foreignAccount }) => {
                       setDeleteConfirmOpen(false)
                       setDeleteError(null)
                       const nextNoteId = closeTabsForNote(noteId)
                       onSelectNote(nextNoteId)
-                      if (purgedLocalOnly) {
+                      if (foreignAccount) {
+                        window.alert(
+                          '该笔记属于其他登录账号，已从当前列表移除。如需彻底删除，请用创建它的账号登录。',
+                        )
+                      } else if (purgedLocalOnly) {
                         window.alert('该笔记未同步到云端，已从本地列表移除。')
                       } else if (offline) {
                         window.alert('当前网络不稳定，删除已暂存本地，联网后将同步到回收站。')
