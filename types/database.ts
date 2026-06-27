@@ -505,6 +505,12 @@ export type Database = {
         Args: Record<string, never>
         Returns: DashboardSummaryRow[]
       }
+      adopt_orphan_note: {
+        Args: {
+          p_note_id: string
+        }
+        Returns: boolean
+      }
     }
   }
 }
