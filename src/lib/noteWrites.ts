@@ -6,6 +6,7 @@ import {
   encryptNoteUpdates,
 } from './noteCrypto'
 import { enqueueOutbox } from './outbox'
+import { ensureAuthSession } from './ensureAuthSession'
 import { isOnline, shouldQueueOffline } from './network'
 import { queryKeys } from '../hooks/queryKeys'
 import { collectDescendantIds } from '../hooks/utils/noteTree'
@@ -14,6 +15,8 @@ import type { Note, NoteInsert, NoteUpdate } from '../../types/database'
 export type WriteResult<T> = {
   data: T
   offline: boolean
+  /** 笔记仅存在于本地缓存，已从界面移除但未写入服务器 */
+  purgedLocalOnly?: boolean
 }
 
 function buildOptimisticNote(
@@ -167,16 +170,58 @@ export async function deleteNoteWrite(
   }
 
   try {
-    const { data, error } = await supabase
-      .from('notes')
-      .update(payload)
-      .in('id', idsToDelete)
-      .select('id')
+    await ensureAuthSession()
 
-    if (error) throw error
-    if (!data?.length) {
-      throw new Error('删除失败：笔记未找到或登录已过期，请刷新页面后重试')
+    const applySoftDelete = async (targetIds: string[]) => {
+      if (targetIds.length === 0) return [] as { id: string }[]
+
+      const { data, error } = await supabase
+        .from('notes')
+        .update(payload)
+        .in('id', targetIds)
+        .select('id')
+
+      if (error) throw error
+      return data ?? []
     }
+
+    let updated = await applySoftDelete(idsToDelete)
+
+    if (updated.length === 0) {
+      const { data: remoteNote, error: fetchError } = await supabase
+        .from('notes')
+        .select('id, deleted_at, user_id')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (fetchError) throw fetchError
+
+      if (!remoteNote) {
+        return { data: id, offline: false, purgedLocalOnly: true }
+      }
+
+      if (remoteNote.deleted_at) {
+        return { data: id, offline: false }
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user && remoteNote.user_id !== user.id) {
+        throw new Error('删除失败：该笔记不属于当前登录账号')
+      }
+
+      updated = await applySoftDelete([id])
+      if (updated.length === 0) {
+        throw new Error('删除失败：请刷新页面或重新登录后再试')
+      }
+
+      if (descendantIds.length > 0) {
+        await applySoftDelete(descendantIds)
+      }
+    }
+
     return { data: id, offline: false }
   } catch (error) {
     if (shouldQueueOffline(error)) {

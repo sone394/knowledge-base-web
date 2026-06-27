@@ -298,13 +298,15 @@ export default function Sidebar({
     const deletedId = deleteTarget.id
     setDeleteError(null)
     deleteNote.mutate(deletedId, {
-      onSuccess: ({ offline }) => {
+      onSuccess: ({ offline, purgedLocalOnly }) => {
         if (selectedNoteId === deletedId) {
           onSelectNote(null)
         }
         setDeleteTarget(null)
         setDeleteError(null)
-        if (offline) {
+        if (purgedLocalOnly) {
+          window.alert('该笔记未同步到云端，已从本地列表移除。')
+        } else if (offline) {
           window.alert('当前网络不稳定，删除已暂存本地，联网后将同步到回收站。')
         }
       },
