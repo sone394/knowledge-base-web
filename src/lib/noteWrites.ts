@@ -192,6 +192,20 @@ export async function deleteNoteWrite(
       } = await supabase.auth.getUser()
 
       if (user && before.user_id !== user.id) {
+        const { data: adopted, error: adoptError } = await supabase.rpc(
+          'adopt_orphan_note',
+          { p_note_id: noteId },
+        )
+
+        if (adoptError) {
+          const missingFn =
+            adoptError.message?.includes('adopt_orphan_note') ||
+            adoptError.code === 'PGRST202'
+          if (!missingFn) throw adoptError
+        } else if (adopted) {
+          return softDeleteOne(noteId)
+        }
+
         return 'foreign'
       }
 
