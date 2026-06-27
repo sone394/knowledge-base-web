@@ -55,7 +55,7 @@ export default function NoteEditor({
     cancelPendingSave,
   } = useNoteContent(noteId)
 
-  const { updateTabTitle } = useEditorSession()
+  const { updateTabTitle, closeTabsForNote } = useEditorSession()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -503,7 +503,8 @@ export default function NoteEditor({
                     onSuccess: ({ offline }) => {
                       setDeleteConfirmOpen(false)
                       setDeleteError(null)
-                      onSelectNote(null)
+                      const nextNoteId = closeTabsForNote(noteId)
+                      onSelectNote(nextNoteId)
                       if (offline) {
                         window.alert('当前网络不稳定，删除已暂存本地，联网后将同步到回收站。')
                       }

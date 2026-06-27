@@ -25,6 +25,7 @@ import { queryKeys } from './queryKeys'
 import {
   buildNoteTree,
   flattenNoteTree,
+  findOrphanNotes,
   type FlatNote,
 } from './utils/noteTree'
 import type { NoteTreeNode } from '../../types/database'
@@ -172,10 +173,33 @@ export function useNotes() {
 
       try {
         const raw = await fetchNotesFromDb()
-        const decrypted = decryptNotes(raw, password)
+        let decrypted = decryptNotes(raw, password)
+
+        const orphans = findOrphanNotes(decrypted)
+        if (orphans.length > 0) {
+          const orphanIds = orphans.map((note) => note.id)
+          const { error: reparentError } = await supabase
+            .from('notes')
+            .update({ parent_id: null })
+            .in('id', orphanIds)
+            .select('id')
+
+          if (!reparentError) {
+            const orphanIdSet = new Set(orphanIds)
+            decrypted = decrypted.map((note) =>
+              orphanIdSet.has(note.id) ? { ...note, parent_id: null } : note,
+            )
+          }
+        }
+
         await saveNotesSnapshot(user.id, decrypted)
         return decrypted
       } catch (error) {
+        const memoryCache = queryClient.getQueryData<Note[]>(
+          queryKeys.notes.tree(),
+        )
+        if (memoryCache?.length) return memoryCache
+
         const cached = await loadNotesSnapshot(user.id)
         if (cached) return cached
         throw error
@@ -271,12 +295,14 @@ export function useNotes() {
         queryClient.getQueryData<Note[]>(queryKeys.notes.tree()) ?? []
       return deleteNoteWrite(id, notes)
     },
-    onSuccess: ({ data: id, offline }) => {
+    onSuccess: async ({ data: id, offline }) => {
       queryClient.removeQueries({ queryKey: queryKeys.notes.detail(id) })
       patchNotesTreeCache(queryClient, (notes) => removeNoteSubtree(notes, id))
 
       const notes = queryClient.getQueryData<Note[]>(queryKeys.notes.tree())
-      if (notes) persistSnapshot(notes)
+      if (notes && user) {
+        await saveNotesSnapshot(user.id, notes)
+      }
 
       queryClient.invalidateQueries({ queryKey: queryKeys.trash.all })
       if (!offline) {

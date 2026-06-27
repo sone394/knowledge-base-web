@@ -27,6 +27,7 @@ type EditorSessionContextValue = {
   closeTab: (tabId: string) => string | null
   setActiveTab: (tabId: string) => string | null
   updateTabTitle: (noteId: string, title: string) => void
+  closeTabsForNote: (noteId: string) => string | null
   goBack: () => string | null
   goForward: () => string | null
 }
@@ -120,6 +121,26 @@ export function EditorSessionProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const closeTabsForNote = useCallback(
+    (noteId: string): string | null => {
+      let nextNoteId: string | null = null
+      setTabs((prev) => {
+        const closingActive = prev.some(
+          (tab) => tab.noteId === noteId && tab.id === activeTabId,
+        )
+        const next = prev.filter((tab) => tab.noteId !== noteId)
+        if (closingActive) {
+          const fallback = next[next.length - 1] ?? null
+          setActiveTabId(fallback?.id ?? null)
+          nextNoteId = fallback?.noteId ?? null
+        }
+        return next
+      })
+      return nextNoteId
+    },
+    [activeTabId],
+  )
+
   const goBack = useCallback((): string | null => {
     let noteId: string | null = null
     setNav((prev) => {
@@ -160,6 +181,7 @@ export function EditorSessionProvider({ children }: { children: ReactNode }) {
       closeTab,
       setActiveTab,
       updateTabTitle,
+      closeTabsForNote,
       goBack,
       goForward,
     }),
@@ -172,6 +194,7 @@ export function EditorSessionProvider({ children }: { children: ReactNode }) {
       closeTab,
       setActiveTab,
       updateTabTitle,
+      closeTabsForNote,
       goBack,
       goForward,
     ],

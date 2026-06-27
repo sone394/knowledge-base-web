@@ -53,6 +53,16 @@ export function resolveTreeParentId(
   return activeIds.has(note.parent_id) ? note.parent_id : null
 }
 
+/** 父节点不在当前列表中的笔记（父文件夹可能在回收站） */
+export function findOrphanNotes(
+  notes: Pick<Note, 'id' | 'parent_id'>[],
+): Pick<Note, 'id' | 'parent_id'>[] {
+  const activeIds = new Set(notes.map((note) => note.id))
+  return notes.filter(
+    (note) => note.parent_id !== null && !activeIds.has(note.parent_id),
+  )
+}
+
 export function buildNoteTree(notes: Note[]): NoteTreeNode[] {
   const activeIds = new Set(notes.map((note) => note.id))
   const byParent = new Map<string | null, Note[]>()
